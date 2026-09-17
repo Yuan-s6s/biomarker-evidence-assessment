@@ -1,0 +1,27 @@
+biomarker_id: RAB38
+disease: LSCC
+intended_uses:
+  - diagnostic
+  - prognostic
+molecular_layers:
+  - rna
+specimen: tumor_tissue
+endpoints:
+  - overall_survival
+covariates:
+  - age
+  - stage
+analysis_mode: full_validation
+datasets:
+  discovery:
+    name: simulated_lsq_discovery
+    role: discovery
+    expression_path: tests/fixtures/discovery_expression.csv
+    metadata_path: tests/fixtures/discovery_metadata.csv
+    expression_layer: rna
+  external:
+    - name: simulated_hnscc_external
+      role: external
+      expression_path: tests/fixtures/external_expression.csv
+      metadata_path: tests/fixtures/external_metadata.csv
+      expression_layer: rna

@@ -1,0 +1,11 @@
+sample_id,diagnosis,survival_time,event,age,stage
+D_N1,normal,1000,0,61,I
+D_N2,normal,950,0,58,I
+D_N3,normal,870,0,67,II
+D_N4,normal,910,0,63,II
+D_T1,tumor,220,1,72,IV
+D_T2,tumor,300,1,69,III
+D_T3,tumor,410,1,65,III
+D_T4,tumor,620,0,59,II
+D_T5,tumor,180,1,74,IV
+D_T6,tumor,520,1,62,III

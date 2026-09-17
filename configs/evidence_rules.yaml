@@ -1,0 +1,28 @@
+dimensions:
+  id_certainty:
+    5: unique offline mapping with HGNC, Ensembl, Entrez, and UniProt identifiers
+    3: unique mapping with partial identifiers
+    0: unresolved or ambiguous mapping
+  technical_reliability:
+    5: all blocking QC checks pass and no major warnings
+    3: blocking checks pass with warnings
+    0: one or more blocking QC failures
+  independent_replication:
+    5: discovery and external cohorts show same direction with interpretable intervals
+    3: external cohort evaluable but imprecise
+    0: no external cohort or directional conflict
+  statistical_robustness:
+    5: bootstrap direction stability >= 0.90 and sensitivity direction concordant
+    3: bootstrap stability >= 0.70
+    0: unstable or unevaluable robustness
+  incremental_clinical_value:
+    5: augmented model improves concordance by >= 0.05
+    3: augmented model improves concordance by > 0.00
+    0: no improvement or unevaluable
+
+overall_grades:
+  A: strong virtual evidence; prioritise prospective or experimental validation
+  B: substantial evidence with a clearly defined missing component
+  C: promising but unstable or supported by limited external evidence
+  D: insufficient evidence
+  E: conflicting evidence or a high likelihood of false positivity
