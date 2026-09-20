@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-from html import escape
 from pathlib import Path
 
+from biomarker_agent.reporting.html import render_validation_html
 from biomarker_agent.schemas import ValidationResult
 
 
@@ -65,35 +65,7 @@ def render_markdown_report(result: ValidationResult) -> str:
 
 
 def render_html_report(result: ValidationResult) -> str:
-    markdown = render_markdown_report(result)
-    body_lines = []
-    for line in markdown.splitlines():
-        if line.startswith("# "):
-            body_lines.append(f"<h1>{escape(line[2:])}</h1>")
-        elif line.startswith("## "):
-            body_lines.append(f"<h2>{escape(line[3:])}</h2>")
-        elif line.startswith("- "):
-            body_lines.append(f"<li>{escape(line[2:])}</li>")
-        elif line:
-            body_lines.append(f"<p>{escape(line)}</p>")
-    return (
-        """<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Biomarker Evidence Assessment Report</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 960px; margin: 40px auto; line-height: 1.5; color: #1f2933; }
-    h1, h2 { color: #102a43; }
-    li { margin: 0.35rem 0; }
-    code { background: #eef2f7; padding: 0.1rem 0.25rem; border-radius: 4px; }
-  </style>
-</head>
-<body>
-"""
-        + "\n".join(body_lines)
-        + "\n</body>\n</html>\n"
-    )
+    return render_validation_html(result)
 
 
 def write_outputs(result: ValidationResult, out_dir: Path) -> tuple[Path, Path, Path]:

@@ -1,0 +1,96 @@
+from pathlib import Path
+
+from biomarker_agent.pipeline import load_request, run_validation
+from biomarker_agent.reporting.html import render_external_html, render_validation_html
+from biomarker_agent.schemas import (
+    BiomarkerEntity,
+    EvidenceScore,
+    ExternalEvidenceResult,
+    LiteratureRecord,
+)
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_validation_html_contains_detailed_sections_and_escapes_content():
+    result = run_validation(load_request(ROOT / "configs/example_request.yaml"))
+    result.entity.query = '<script>alert("unsafe")</script>'
+    result.entity.mapping_source = '<img src=x onerror=alert("unsafe")>'
+
+    html = render_validation_html(result)
+
+    assert '<meta name="viewport"' in html
+    assert 'id="evidence"' in html
+    assert "Cohorts and quality control" in html
+    assert "Mean difference" in html
+    assert "Hazard ratio" in html
+    assert "Incremental clinical value" in html
+    assert "Run provenance" in html
+    assert 'role="meter"' in html
+    assert '<script>alert("unsafe")</script>' not in html
+    assert "&lt;script&gt;alert(&quot;unsafe&quot;)&lt;/script&gt;" in html
+    assert '<img src=x onerror=alert("unsafe")>' not in html
+    assert "&lt;img src=x onerror=alert(&quot;unsafe&quot;)&gt;" in html
+
+
+def test_external_html_contains_source_details_and_rejects_unsafe_links():
+    result = ExternalEvidenceResult(
+        entity=BiomarkerEntity(
+            query="FAKE<1>",
+            id_type="gene_symbol_or_alias",
+            hgnc_symbol="FAKE1",
+            ensembl_gene_id="ENSG00000000001",
+            entrez_id="1",
+            uniprot_accession="P00001",
+            aliases=["ALIAS1"],
+            mapping_source="test",
+            resolution_confidence="unique",
+        ),
+        disease="Example disease",
+        literature_query='FAKE1 AND "Example disease"',
+        literature_records=[
+            LiteratureRecord(
+                pmid="123",
+                title="FAKE1 <expression> study",
+                journal="Example Journal",
+                publication_date="2026",
+                url="javascript:alert(1)",
+                evidence_class="direct",
+                matched_terms=["Example disease"],
+            )
+        ],
+        database_records=[
+            {
+                "source": "MyGene.info",
+                "symbol": "FAKE1",
+                "name": "Example gene",
+                "entrezgene": "1",
+                "ensembl": {"gene": "ENSG00000000001"},
+                "uniprot": {"Swiss-Prot": "P00001"},
+                "score": 42.0,
+            }
+        ],
+        evidence_scores={
+            "id_certainty": EvidenceScore(
+                dimension="id_certainty",
+                score=5,
+                justification="Unique test mapping.",
+            )
+        },
+        overall_confidence="low",
+        limitations=["Metadata-level test evidence only."],
+        provenance={"generated_at": "2026-09-20T00:00:00+00:00", "sources": ["Test source"]},
+    )
+
+    html = render_external_html(result)
+
+    assert "External database records" in html
+    assert "MyGene.info" in html
+    assert "Disease-specific literature" in html
+    assert "PMID" in html
+    assert "FAKE1 &lt;expression&gt; study" in html
+    assert 'href="#"' in html
+    assert "javascript:alert(1)" not in html
+    assert "FAKE&lt;1&gt;" in html
+    assert "2026-09-20 00:00 UTC" in html
+    assert "2026-09-20T00:00:00+00:00" in html

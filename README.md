@@ -91,6 +91,12 @@ recommended because synonym expansion is currently limited.
 Open `reports/tp53_breast/external_report.html` in a browser, or inspect the
 machine-readable `external_evidence.json`.
 
+HTML reports are self-contained and work offline. They provide a responsive,
+print-friendly overview followed by the underlying evidence scores, cohort and
+quality-control details, effect estimates with confidence intervals, model
+terms, limitations, recommended next steps, and full run provenance. Sections
+that do not apply to a workflow are omitted or clearly marked as unavailable.
+
 ## Choose A Workflow
 
 ### 1. External Evidence Search
