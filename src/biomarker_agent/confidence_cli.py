@@ -4,7 +4,13 @@ import argparse
 import json
 from pathlib import Path
 
-from biomarker_agent.confidence import build_request_from_answers, planning_confidence, run_confidence_tool, split_csv_answer, yes
+from biomarker_agent.confidence import (
+    build_request_from_answers,
+    planning_confidence,
+    run_confidence_tool,
+    split_csv_answer,
+    yes,
+)
 
 
 def ask(prompt: str, default: str | None = None) -> str:
@@ -13,21 +19,18 @@ def ask(prompt: str, default: str | None = None) -> str:
     return answer or (default or "")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Ask questions and judge biomarker evidence confidence")
-    parser.add_argument("--out", type=Path, default=Path("reports/confidence"))
-    parser.add_argument("--planning-only", action="store_true", help="Resolve the entity and report confidence gaps without asking for data files")
-    args = parser.parse_args()
-
+def run_guided_assessment(out: Path, planning_only: bool = False) -> None:
     biomarker_id = ask("Biomarker ID")
     disease = ask("Disease", "LSCC")
-    intended_uses = split_csv_answer(ask("Intended use(s), comma-separated", "diagnostic,prognostic"), ["diagnostic", "prognostic"])
+    intended_uses = split_csv_answer(
+        ask("Intended use(s), comma-separated", "diagnostic,prognostic"), ["diagnostic", "prognostic"]
+    )
     molecular_layers = split_csv_answer(ask("Molecular layer(s), comma-separated", "rna"), ["rna"])
 
-    if args.planning_only or not yes(ask("Do you have discovery cohort CSV files?", "no")):
+    if planning_only or not yes(ask("Do you have discovery cohort CSV files?", "no")):
         summary = planning_confidence(biomarker_id, disease, intended_uses, molecular_layers)
-        args.out.mkdir(parents=True, exist_ok=True)
-        path = args.out / "planning_confidence.json"
+        out.mkdir(parents=True, exist_ok=True)
+        path = out / "planning_confidence.json"
         path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         print(json.dumps(summary, indent=2))
         print(f"Wrote {path}")
@@ -56,13 +59,25 @@ def main() -> None:
         external_expression_path=external_expression,
         external_metadata_path=external_metadata,
     )
-    result = run_confidence_tool(request, args.out)
+    result = run_confidence_tool(request, out)
     print(f"Overall grade: {result.overall_grade}")
     for score in result.evidence_scores.values():
         print(f"{score.dimension}: {score.score}/5 - {score.justification}")
-    print(f"Wrote {args.out / 'result.json'}")
-    print(f"Wrote {args.out / 'report.md'}")
-    print(f"Wrote {args.out / 'report.html'}")
+    print(f"Wrote {out / 'result.json'}")
+    print(f"Wrote {out / 'report.md'}")
+    print(f"Wrote {out / 'report.html'}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Ask questions and assess biomarker evidence confidence")
+    parser.add_argument("--out", type=Path, default=Path("reports/confidence"))
+    parser.add_argument(
+        "--planning-only",
+        action="store_true",
+        help="Resolve the entity and report confidence gaps without asking for data files",
+    )
+    args = parser.parse_args()
+    run_guided_assessment(args.out, args.planning_only)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,6 @@ from typing import Any
 from biomarker_agent.external.http import get_json
 from biomarker_agent.schemas import LiteratureRecord
 
-
 EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 
 
@@ -22,12 +21,21 @@ def disease_terms(disease: str) -> list[str]:
 def build_pubmed_query(symbol: str, disease: str) -> str:
     terms = disease_terms(disease)
     disease_clause = " OR ".join(f'"{term}"' for term in terms)
-    return f'({symbol}[Title/Abstract]) AND ({disease_clause}) AND (biomarker OR expression OR prognostic OR diagnostic OR survival)'
+    return f"({symbol}[Title/Abstract]) AND ({disease_clause}) AND (biomarker OR expression OR prognostic OR diagnostic OR survival)"
 
 
-def search_pubmed(symbol: str, disease: str, retmax: int = 10, email: str | None = None) -> tuple[str, list[LiteratureRecord], dict[str, Any]]:
+def search_pubmed(
+    symbol: str, disease: str, retmax: int = 10, email: str | None = None
+) -> tuple[str, list[LiteratureRecord], dict[str, Any]]:
     query = build_pubmed_query(symbol, disease)
-    params: dict[str, Any] = {"db": "pubmed", "term": query, "retmode": "json", "retmax": retmax, "sort": "relevance", "tool": "biomarker_validation_agent"}
+    params: dict[str, Any] = {
+        "db": "pubmed",
+        "term": query,
+        "retmode": "json",
+        "retmax": retmax,
+        "sort": "relevance",
+        "tool": "biomarker_validation_agent",
+    }
     if email:
         params["email"] = email
     search_payload = get_json(f"{EUTILS_BASE}/esearch.fcgi", params)
@@ -35,7 +43,12 @@ def search_pubmed(symbol: str, disease: str, retmax: int = 10, email: str | None
     if not ids:
         return query, [], {"search": search_payload, "summary": None}
 
-    summary_params: dict[str, Any] = {"db": "pubmed", "id": ",".join(ids), "retmode": "json", "tool": "biomarker_validation_agent"}
+    summary_params: dict[str, Any] = {
+        "db": "pubmed",
+        "id": ",".join(ids),
+        "retmode": "json",
+        "tool": "biomarker_validation_agent",
+    }
     if email:
         summary_params["email"] = email
     summary_payload = get_json(f"{EUTILS_BASE}/esummary.fcgi", summary_params)

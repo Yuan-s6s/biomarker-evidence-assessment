@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from biomarker_agent.pipeline import run_validation
 from biomarker_agent.reporting import write_outputs
@@ -71,8 +71,14 @@ def planning_confidence(biomarker_id: str, disease: str, intended_uses: list[str
             "status": "needs_confirmation",
             "entity": exc.entity.model_dump(mode="json"),
             "confidence": {
-                "id_certainty": EvidenceScore(dimension="id_certainty", score=0, justification="The submitted identifier matched multiple offline candidates.").model_dump(mode="json"),
-                "data_availability": EvidenceScore(dimension="data_availability", score=0, justification="No cohort data were supplied.").model_dump(mode="json"),
+                "id_certainty": EvidenceScore(
+                    dimension="id_certainty",
+                    score=0,
+                    justification="The submitted identifier matched multiple offline candidates.",
+                ).model_dump(mode="json"),
+                "data_availability": EvidenceScore(
+                    dimension="data_availability", score=0, justification="No cohort data were supplied."
+                ).model_dump(mode="json"),
             },
             "overall": "Cannot judge biomarker evidence until the identifier is confirmed and validation data are supplied.",
         }
@@ -81,8 +87,14 @@ def planning_confidence(biomarker_id: str, disease: str, intended_uses: list[str
             "status": "unresolved",
             "entity": exc.entity.model_dump(mode="json"),
             "confidence": {
-                "id_certainty": EvidenceScore(dimension="id_certainty", score=0, justification="The offline resolver could not map the submitted identifier.").model_dump(mode="json"),
-                "data_availability": EvidenceScore(dimension="data_availability", score=0, justification="No cohort data were supplied.").model_dump(mode="json"),
+                "id_certainty": EvidenceScore(
+                    dimension="id_certainty",
+                    score=0,
+                    justification="The offline resolver could not map the submitted identifier.",
+                ).model_dump(mode="json"),
+                "data_availability": EvidenceScore(
+                    dimension="data_availability", score=0, justification="No cohort data were supplied."
+                ).model_dump(mode="json"),
             },
             "overall": "Cannot judge biomarker evidence until the identifier is resolved.",
         }
@@ -97,10 +109,24 @@ def planning_confidence(biomarker_id: str, disease: str, intended_uses: list[str
             "molecular_layers": molecular_layers,
         },
         "confidence": {
-            "id_certainty": EvidenceScore(dimension="id_certainty", score=5, justification="The offline resolver found a unique entity mapping.").model_dump(mode="json"),
-            "data_availability": EvidenceScore(dimension="data_availability", score=0, justification="No expression/survival cohort data were supplied, so no statistical validation was run.").model_dump(mode="json"),
-            "direct_evidence": EvidenceScore(dimension="direct_evidence", score=0, justification=f"No local {layers} evidence was analysed for {disease or 'LSCC'}.").model_dump(mode="json"),
-            "clinical_utility": EvidenceScore(dimension="clinical_utility", score=0, justification="No baseline-vs-biomarker model comparison was possible without cohort data.").model_dump(mode="json"),
+            "id_certainty": EvidenceScore(
+                dimension="id_certainty", score=5, justification="The offline resolver found a unique entity mapping."
+            ).model_dump(mode="json"),
+            "data_availability": EvidenceScore(
+                dimension="data_availability",
+                score=0,
+                justification="No expression/survival cohort data were supplied, so no statistical validation was run.",
+            ).model_dump(mode="json"),
+            "direct_evidence": EvidenceScore(
+                dimension="direct_evidence",
+                score=0,
+                justification=f"No local {layers} evidence was analysed for {disease or 'LSCC'}.",
+            ).model_dump(mode="json"),
+            "clinical_utility": EvidenceScore(
+                dimension="clinical_utility",
+                score=0,
+                justification="No baseline-vs-biomarker model comparison was possible without cohort data.",
+            ).model_dump(mode="json"),
         },
         "overall": "ID confidence is high, but biomarker evidence confidence is insufficient because no validation data were supplied.",
         "next_questions": [

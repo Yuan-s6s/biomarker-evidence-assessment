@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from typing import TypedDict
 
 from biomarker_agent.schemas import BiomarkerEntity
 
@@ -17,7 +18,15 @@ class UnresolvedIdentifierError(ValueError):
         super().__init__("Identifier could not be resolved")
 
 
-MOCK_ENTITIES = [
+class MockEntity(TypedDict):
+    hgnc_symbol: str
+    ensembl_gene_id: str
+    entrez_id: str
+    uniprot_accession: str
+    aliases: list[str]
+
+
+MOCK_ENTITIES: list[MockEntity] = [
     {
         "hgnc_symbol": "RAB38",
         "ensembl_gene_id": "ENSG00000123892",
@@ -59,18 +68,27 @@ class OfflineResolver:
         id_type = self.detect_id_type(query)
         normalized = query.strip().upper().split(".")[0]
         matches = []
-        for entity in MOCK_ENTITIES:
+        for candidate in MOCK_ENTITIES:
             haystack = {
-                entity["hgnc_symbol"].upper(),
-                entity["ensembl_gene_id"].upper(),
-                entity["entrez_id"],
-                entity["uniprot_accession"].upper(),
-                *(alias.upper() for alias in entity["aliases"]),
+                candidate["hgnc_symbol"].upper(),
+                candidate["ensembl_gene_id"].upper(),
+                candidate["entrez_id"],
+                candidate["uniprot_accession"].upper(),
+                *(alias.upper() for alias in candidate["aliases"]),
             }
             if normalized in haystack:
-                matches.append(entity)
+                matches.append(candidate)
         if normalized == "RAB":
-            matches = [MOCK_ENTITIES[0], {"hgnc_symbol": "RAB37", "ensembl_gene_id": "ENSG00000172794", "entrez_id": "326624", "uniprot_accession": "Q96AX2"}]
+            matches = [
+                MOCK_ENTITIES[0],
+                {
+                    "hgnc_symbol": "RAB37",
+                    "ensembl_gene_id": "ENSG00000172794",
+                    "entrez_id": "326624",
+                    "uniprot_accession": "Q96AX2",
+                    "aliases": [],
+                },
+            ]
 
         if len(matches) == 1:
             return BiomarkerEntity(
@@ -80,12 +98,12 @@ class OfflineResolver:
                 **matches[0],
             )
         if len(matches) > 1:
-            entity = BiomarkerEntity(
+            resolved = BiomarkerEntity(
                 query=query,
                 id_type=id_type,
                 resolution_confidence="ambiguous",
                 candidates=[{k: str(v) for k, v in match.items() if k != "aliases"} for match in matches],
             )
-            raise AmbiguousIdentifierError(entity)
-        entity = BiomarkerEntity(query=query, id_type=id_type, resolution_confidence="unresolved")
-        raise UnresolvedIdentifierError(entity)
+            raise AmbiguousIdentifierError(resolved)
+        unresolved = BiomarkerEntity(query=query, id_type=id_type, resolution_confidence="unresolved")
+        raise UnresolvedIdentifierError(unresolved)

@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "biomarker-validation-agent"
+name = "biomarker-evidence-assessment"
 version = "0.1.0"
-description = "Auditable virtual validation for RNA/protein expression biomarkers"
+description = "Auditable evidence assessment and validation-readiness analysis for RNA/protein biomarkers"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -16,16 +16,20 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/Yuan-s6s/biomarker-validation-agent#readme"
-Issues = "https://github.com/Yuan-s6s/biomarker-validation-agent/issues"
-Source = "https://github.com/Yuan-s6s/biomarker-validation-agent"
+Documentation = "https://github.com/Yuan-s6s/biomarker-evidence-assessment#readme"
+Issues = "https://github.com/Yuan-s6s/biomarker-evidence-assessment/issues"
+Source = "https://github.com/Yuan-s6s/biomarker-evidence-assessment"
 
 [project.optional-dependencies]
 dev = [
+  "mypy>=2.3",
   "pytest>=8.0",
+  "ruff>=0.16",
+  "types-PyYAML>=6.0",
 ]
 
 [project.scripts]
+biomarker-assess = "biomarker_agent.assessment_cli:main"
 biomarker-agent = "biomarker_agent.cli:main"
 biomarker-confidence = "biomarker_agent.confidence_cli:main"
 biomarker-external = "biomarker_agent.external_cli:main"
@@ -36,3 +40,11 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]

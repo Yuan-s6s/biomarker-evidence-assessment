@@ -21,7 +21,17 @@ def load_request(path: Path) -> ValidationRequest:
 
 
 def _accepted_ids(entity) -> list[str]:
-    return [value for value in [entity.hgnc_symbol, entity.ensembl_gene_id, entity.entrez_id, entity.uniprot_accession, *entity.aliases] if value]
+    return [
+        value
+        for value in [
+            entity.hgnc_symbol,
+            entity.ensembl_gene_id,
+            entity.entrez_id,
+            entity.uniprot_accession,
+            *entity.aliases,
+        ]
+        if value
+    ]
 
 
 def _dataset_record(config) -> dict[str, Any]:
@@ -53,9 +63,15 @@ def run_validation(request: ValidationRequest) -> ValidationResult:
         qc_results.append(qc)
         if not qc.passed:
             continue
-        diagnostic_results.append(run_diagnostic_analysis(cohort, entity.hgnc_symbol or request.biomarker_id, expression_values))
+        diagnostic_results.append(
+            run_diagnostic_analysis(cohort, entity.hgnc_symbol or request.biomarker_id, expression_values)
+        )
         if "overall_survival" in request.endpoints:
-            prognostic_results.append(run_prognostic_analysis(cohort, entity.hgnc_symbol or request.biomarker_id, expression_values, request.covariates))
+            prognostic_results.append(
+                run_prognostic_analysis(
+                    cohort, entity.hgnc_symbol or request.biomarker_id, expression_values, request.covariates
+                )
+            )
             clinical_utility[config.name] = run_clinical_utility(cohort, expression_values, request.covariates)
         robustness_results[config.name] = run_bootstrap_direction(cohort, expression_values)
 

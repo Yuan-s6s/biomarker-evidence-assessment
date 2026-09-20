@@ -3,7 +3,6 @@ from pathlib import Path
 from biomarker_agent.pipeline import load_request, run_validation
 from biomarker_agent.reporting import write_outputs
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -17,5 +16,5 @@ def test_pipeline_generates_result_and_reports(tmp_path):
     assert result.overall_grade in {"C", "D"}
     json_path, markdown_path, html_path = write_outputs(result, tmp_path)
     assert json_path.exists()
-    assert "Biomarker Validation Report" in markdown_path.read_text()
+    assert "Biomarker Evidence Assessment Report" in markdown_path.read_text()
     assert "<html" in html_path.read_text()

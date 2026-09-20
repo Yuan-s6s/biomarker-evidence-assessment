@@ -8,7 +8,7 @@ from biomarker_agent.reporting import write_outputs
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run local biomarker validation")
+    parser = argparse.ArgumentParser(description="Assess biomarker evidence in local cohorts")
     parser.add_argument("request", type=Path)
     parser.add_argument("--out", type=Path, default=Path("reports/latest"))
     args = parser.parse_args()

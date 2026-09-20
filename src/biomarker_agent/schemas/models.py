@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-
 DatasetRole = Literal["discovery", "external"]
 Layer = Literal["rna", "protein"]
+
+
+def _default_layers() -> list[Layer]:
+    return ["rna"]
 
 
 class CohortConfig(BaseModel):
@@ -31,7 +34,7 @@ class ValidationRequest(BaseModel):
     biomarker_id: str
     disease: str = "LSCC"
     intended_uses: list[str] = Field(default_factory=lambda: ["diagnostic", "prognostic"])
-    molecular_layers: list[Layer] = Field(default_factory=lambda: ["rna"])
+    molecular_layers: list[Layer] = Field(default_factory=_default_layers)
     specimen: str = "tumor_tissue"
     endpoints: list[str] = Field(default_factory=lambda: ["overall_survival"])
     covariates: list[str] = Field(default_factory=list)
@@ -172,7 +175,7 @@ class ValidationResult(BaseModel):
     @classmethod
     def now_provenance(cls) -> dict[str, Any]:
         return {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "software": "biomarker-validation-agent",
+            "generated_at": datetime.now(UTC).isoformat(),
+            "software": "biomarker-evidence-assessment",
             "phase": "phase_1_local_mvp",
         }

@@ -6,7 +6,9 @@ from biomarker_agent.datasets import CohortData
 from biomarker_agent.schemas import RobustnessResult
 
 
-def run_bootstrap_direction(cohort: CohortData, expression_values: dict[str, float | None], iterations: int = 200, seed: int = 202601) -> RobustnessResult:
+def run_bootstrap_direction(
+    cohort: CohortData, expression_values: dict[str, float | None], iterations: int = 200, seed: int = 202601
+) -> RobustnessResult:
     rng = random.Random(seed)
     tumor = []
     normal = []
@@ -19,7 +21,12 @@ def run_bootstrap_direction(cohort: CohortData, expression_values: dict[str, flo
         elif row.get("diagnosis", "").lower() == "normal":
             normal.append(value)
     if not tumor or not normal:
-        return RobustnessResult(cohort_name=cohort.config.name, bootstrap_iterations=iterations, diagnostic_direction_stability=None, sensitivity_notes=["diagnostic bootstrap was not evaluable"])
+        return RobustnessResult(
+            cohort_name=cohort.config.name,
+            bootstrap_iterations=iterations,
+            diagnostic_direction_stability=None,
+            sensitivity_notes=["diagnostic bootstrap was not evaluable"],
+        )
     observed_direction = 1 if (sum(tumor) / len(tumor)) >= (sum(normal) / len(normal)) else -1
     stable = 0
     for _ in range(iterations):

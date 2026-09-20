@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from biomarker_agent.external.http import get_json
 from biomarker_agent.schemas import BiomarkerEntity
-
 
 MYGENE_QUERY_URL = "https://mygene.info/v3/query"
 
@@ -41,7 +40,9 @@ def query_mygene(query: str, size: int = 5) -> tuple[BiomarkerEntity, list[dict[
         for hit in hits
     ]
     if not hits:
-        return BiomarkerEntity(query=query, id_type="external_query", resolution_confidence="unresolved", mapping_source="mygene_v3"), records
+        return BiomarkerEntity(
+            query=query, id_type="external_query", resolution_confidence="unresolved", mapping_source="mygene_v3"
+        ), records
 
     top = hits[0]
     ensembl = top.get("ensembl")
@@ -52,8 +53,13 @@ def query_mygene(query: str, size: int = 5) -> tuple[BiomarkerEntity, list[dict[
     else:
         ensembl_gene_id = None
 
-    candidates = [{k: str(v) for k, v in record.items() if v is not None and k in {"symbol", "entrezgene"}} for record in records[:size]]
-    confidence = "unique" if len(hits) == 1 or str(top.get("symbol", "")).upper() == query.upper() else "ambiguous"
+    candidates = [
+        {k: str(v) for k, v in record.items() if v is not None and k in {"symbol", "entrezgene"}}
+        for record in records[:size]
+    ]
+    confidence: Literal["unique", "ambiguous"] = (
+        "unique" if len(hits) == 1 or str(top.get("symbol", "")).upper() == query.upper() else "ambiguous"
+    )
     return (
         BiomarkerEntity(
             query=query,

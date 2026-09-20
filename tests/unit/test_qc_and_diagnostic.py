@@ -5,7 +5,6 @@ from biomarker_agent.datasets import load_cohort
 from biomarker_agent.qc import run_qc
 from biomarker_agent.schemas import CohortConfig
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

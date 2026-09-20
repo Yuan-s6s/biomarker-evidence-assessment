@@ -1,8 +1,8 @@
 from .models import (
     AnalysisBundle,
     BiomarkerEntity,
-    CohortConfig,
     ClinicalUtilityResult,
+    CohortConfig,
     CoxTerm,
     DatasetConfig,
     DiagnosticResult,
@@ -19,8 +19,8 @@ from .models import (
 __all__ = [
     "AnalysisBundle",
     "BiomarkerEntity",
-    "CohortConfig",
     "ClinicalUtilityResult",
+    "CohortConfig",
     "CoxTerm",
     "DatasetConfig",
     "DiagnosticResult",

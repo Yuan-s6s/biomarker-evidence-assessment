@@ -20,7 +20,11 @@ def run_qc(cohort: CohortData, expression_values: dict[str, float | None]) -> QC
     if missing_expr := sorted(metadata_samples - expression_samples):
         failures.append(f"metadata samples missing expression: {', '.join(missing_expr)}")
 
-    analyzable = [row for row in cohort.metadata if row.get("sample_id") in expression_values and expression_values[row["sample_id"]] is not None]
+    analyzable = [
+        row
+        for row in cohort.metadata
+        if row.get("sample_id") in expression_values and expression_values[row["sample_id"]] is not None
+    ]
     missing_expression_count = sum(1 for value in expression_values.values() if value is None)
     if missing_expression_count:
         warnings.append(f"{missing_expression_count} samples have missing biomarker expression")
@@ -37,9 +41,12 @@ def run_qc(cohort: CohortData, expression_values: dict[str, float | None]) -> QC
         event = row.get("event")
         if time not in (None, "") or event not in (None, ""):
             survival_rows += 1
+            if time in (None, "") or event in (None, ""):
+                failures.append(f"missing survival field for sample {row.get('sample_id')}")
+                continue
             try:
-                time_value = float(time)
-                event_value = int(float(event))
+                time_value = float(str(time))
+                event_value = int(float(str(event)))
             except (TypeError, ValueError):
                 failures.append(f"invalid survival fields for sample {row.get('sample_id')}")
                 continue

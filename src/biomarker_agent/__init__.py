@@ -1,4 +1,4 @@
-"""Biomarker validation agent Phase 1 package."""
+"""Auditable biomarker evidence assessment toolkit."""
 
 __all__ = ["__version__"]
 __version__ = "0.1.0"

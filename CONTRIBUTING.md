@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping improve Biomarker Validation Agent.
+Thank you for helping improve Biomarker Evidence Assessment Toolkit.
 
 ## Development setup
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import exp, log, sqrt
+from math import exp, log
 from typing import Any
 
 import numpy as np
@@ -22,7 +22,9 @@ class CoxFit:
     warnings: list[str]
 
 
-def _encode_rows(cohort: CohortData, expression_values: dict[str, float | None], covariates: list[str], include_biomarker: bool) -> tuple[list[str], np.ndarray, np.ndarray, np.ndarray]:
+def _encode_rows(
+    cohort: CohortData, expression_values: dict[str, float | None], covariates: list[str], include_biomarker: bool
+) -> tuple[list[str], np.ndarray, np.ndarray, np.ndarray]:
     rows: list[dict[str, Any]] = []
     for row in cohort.metadata:
         sample_id = row["sample_id"]
@@ -51,7 +53,9 @@ def _encode_rows(cohort: CohortData, expression_values: dict[str, float | None],
         else:
             levels = sorted({str(value) for value in values if value != ""})
             for level in levels[1:]:
-                encoded_columns[f"{covariate}={level}"] = [1.0 if str(row.get(covariate, "")) == level else 0.0 for row in rows]
+                encoded_columns[f"{covariate}={level}"] = [
+                    1.0 if str(row.get(covariate, "")) == level else 0.0 for row in rows
+                ]
 
     terms = list(encoded_columns)
     x = np.asarray([encoded_columns[term] for term in terms], dtype=float).T
@@ -69,7 +73,9 @@ def _standardize(x: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return (x - means) / scales, means, scales
 
 
-def _loglik_gradient_hessian(beta: np.ndarray, x: np.ndarray, times: np.ndarray, events: np.ndarray) -> tuple[float, np.ndarray, np.ndarray]:
+def _loglik_gradient_hessian(
+    beta: np.ndarray, x: np.ndarray, times: np.ndarray, events: np.ndarray
+) -> tuple[float, np.ndarray, np.ndarray]:
     p = len(beta)
     loglik = 0.0
     gradient = np.zeros(p)
@@ -89,7 +95,9 @@ def _loglik_gradient_hessian(beta: np.ndarray, x: np.ndarray, times: np.ndarray,
     return loglik, gradient, hessian
 
 
-def fit_cox_model(cohort: CohortData, expression_values: dict[str, float | None], covariates: list[str], include_biomarker: bool) -> CoxFit:
+def fit_cox_model(
+    cohort: CohortData, expression_values: dict[str, float | None], covariates: list[str], include_biomarker: bool
+) -> CoxFit:
     terms, x, times, events = _encode_rows(cohort, expression_values, covariates, include_biomarker)
     warnings: list[str] = []
     if len(times) < 4 or int(events.sum()) < 2 or not terms:
@@ -145,14 +153,20 @@ def concordance_index(times: np.ndarray, events: np.ndarray, risk_scores: np.nda
                 continue
             if times[i] < times[j] and events[i] == 1:
                 comparable += 1
-                concordant += 1.0 if risk_scores[i] > risk_scores[j] else 0.5 if risk_scores[i] == risk_scores[j] else 0.0
+                concordant += (
+                    1.0 if risk_scores[i] > risk_scores[j] else 0.5 if risk_scores[i] == risk_scores[j] else 0.0
+                )
             elif times[j] < times[i] and events[j] == 1:
                 comparable += 1
-                concordant += 1.0 if risk_scores[j] > risk_scores[i] else 0.5 if risk_scores[i] == risk_scores[j] else 0.0
+                concordant += (
+                    1.0 if risk_scores[j] > risk_scores[i] else 0.5 if risk_scores[i] == risk_scores[j] else 0.0
+                )
     return concordant / comparable if comparable else float("nan")
 
 
-def run_prognostic_analysis(cohort: CohortData, biomarker: str, expression_values: dict[str, float | None], covariates: list[str]) -> PrognosticResult:
+def run_prognostic_analysis(
+    cohort: CohortData, biomarker: str, expression_values: dict[str, float | None], covariates: list[str]
+) -> PrognosticResult:
     fit = fit_cox_model(cohort, expression_values, covariates, include_biomarker=True)
     _, _, times, events = _encode_rows(cohort, expression_values, covariates, include_biomarker=True)
     terms = []
@@ -178,7 +192,9 @@ def run_prognostic_analysis(cohort: CohortData, biomarker: str, expression_value
     )
 
 
-def run_clinical_utility(cohort: CohortData, expression_values: dict[str, float | None], covariates: list[str]) -> ClinicalUtilityResult:
+def run_clinical_utility(
+    cohort: CohortData, expression_values: dict[str, float | None], covariates: list[str]
+) -> ClinicalUtilityResult:
     try:
         _, _, times, events = _encode_rows(cohort, expression_values, covariates, include_biomarker=True)
         augmented = fit_cox_model(cohort, expression_values, covariates, include_biomarker=True)
@@ -189,7 +205,25 @@ def run_clinical_utility(cohort: CohortData, expression_values: dict[str, float 
         else:
             baseline_c = None
         delta = None if baseline_c is None else augmented_c - baseline_c
-        interpretation = "baseline unavailable; no prespecified covariates" if baseline_c is None else "biomarker improved apparent concordance" if delta and delta > 0 else "no apparent concordance improvement"
-        return ClinicalUtilityResult(cohort_name=cohort.config.name, baseline_c_index=baseline_c, augmented_c_index=augmented_c, delta_c_index=delta, interpretation=interpretation)
+        interpretation = (
+            "baseline unavailable; no prespecified covariates"
+            if baseline_c is None
+            else "biomarker improved apparent concordance"
+            if delta and delta > 0
+            else "no apparent concordance improvement"
+        )
+        return ClinicalUtilityResult(
+            cohort_name=cohort.config.name,
+            baseline_c_index=baseline_c,
+            augmented_c_index=augmented_c,
+            delta_c_index=delta,
+            interpretation=interpretation,
+        )
     except ValueError as exc:
-        return ClinicalUtilityResult(cohort_name=cohort.config.name, baseline_c_index=None, augmented_c_index=None, delta_c_index=None, interpretation=str(exc))
+        return ClinicalUtilityResult(
+            cohort_name=cohort.config.name,
+            baseline_c_index=None,
+            augmented_c_index=None,
+            delta_c_index=None,
+            interpretation=str(exc),
+        )

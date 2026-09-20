@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from math import erf, sqrt
+from typing import Literal
 
 from biomarker_agent.datasets import CohortData
 from biomarker_agent.schemas import DiagnosticResult
@@ -32,7 +33,9 @@ def _auc(tumor: list[float], normal: list[float]) -> float:
     return wins / total
 
 
-def run_diagnostic_analysis(cohort: CohortData, biomarker: str, expression_values: dict[str, float | None]) -> DiagnosticResult:
+def run_diagnostic_analysis(
+    cohort: CohortData, biomarker: str, expression_values: dict[str, float | None]
+) -> DiagnosticResult:
     tumor: list[float] = []
     normal: list[float] = []
     for row in cohort.metadata:
@@ -51,6 +54,7 @@ def run_diagnostic_analysis(cohort: CohortData, biomarker: str, expression_value
     se = sqrt(_sample_var(tumor) / len(tumor) + _sample_var(normal) / len(normal))
     statistic = difference / se if se else 0.0
     ci = (difference - 1.96 * se, difference + 1.96 * se)
+    direction: Literal["higher_in_tumor", "lower_in_tumor", "no_difference"]
     if difference > 1e-9:
         direction = "higher_in_tumor"
     elif difference < -1e-9:

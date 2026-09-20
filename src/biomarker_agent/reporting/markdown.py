@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from html import escape
+from pathlib import Path
 
 from biomarker_agent.schemas import ValidationResult
 
@@ -15,7 +15,7 @@ def _dump_model(result: ValidationResult) -> dict:
 
 def render_markdown_report(result: ValidationResult) -> str:
     lines = [
-        f"# Biomarker Validation Report: {result.entity.hgnc_symbol or result.entity.query}",
+        f"# Biomarker Evidence Assessment Report: {result.entity.hgnc_symbol or result.entity.query}",
         "",
         "## Entity Resolution",
         f"- Query: `{result.entity.query}`",
@@ -31,19 +31,27 @@ def render_markdown_report(result: ValidationResult) -> str:
     lines.extend(["", "## QC"])
     for qc in result.qc:
         status = "passed" if qc.passed else "blocked"
-        lines.append(f"- {qc.cohort_name}: {status}; analyzable n={qc.analyzable_sample_count}; failures={qc.blocking_failures or 'none'}; warnings={qc.warnings or 'none'}")
+        lines.append(
+            f"- {qc.cohort_name}: {status}; analyzable n={qc.analyzable_sample_count}; failures={qc.blocking_failures or 'none'}; warnings={qc.warnings or 'none'}"
+        )
     lines.extend(["", "## Diagnostic Expression"])
-    for item in result.analyses.diagnostic:
-        lines.append(f"- {item.cohort_name}: mean difference={item.mean_difference:.3f} (95% CI {item.ci95[0]:.3f} to {item.ci95[1]:.3f}), AUC={item.auc:.3f}, direction={item.direction}")
+    for diagnostic in result.analyses.diagnostic:
+        lines.append(
+            f"- {diagnostic.cohort_name}: mean difference={diagnostic.mean_difference:.3f} (95% CI {diagnostic.ci95[0]:.3f} to {diagnostic.ci95[1]:.3f}), AUC={diagnostic.auc:.3f}, direction={diagnostic.direction}"
+        )
     lines.extend(["", "## Prognostic Association"])
-    for item in result.analyses.prognostic:
-        biomarker_terms = [term for term in item.terms if term.term == "biomarker_expression"]
+    for prognostic in result.analyses.prognostic:
+        biomarker_terms = [term for term in prognostic.terms if term.term == "biomarker_expression"]
         if biomarker_terms:
             term = biomarker_terms[0]
-            lines.append(f"- {item.cohort_name}: biomarker HR={term.hazard_ratio:.3f} (95% CI {term.ci95[0]:.3f} to {term.ci95[1]:.3f}), C-index={item.concordance_index:.3f}")
+            lines.append(
+                f"- {prognostic.cohort_name}: biomarker HR={term.hazard_ratio:.3f} (95% CI {term.ci95[0]:.3f} to {term.ci95[1]:.3f}), C-index={prognostic.concordance_index:.3f}"
+            )
     lines.extend(["", "## Clinical Utility"])
     for utility in result.clinical_utility.values():
-        lines.append(f"- {utility.cohort_name}: baseline C={utility.baseline_c_index}, augmented C={utility.augmented_c_index}, delta={utility.delta_c_index}; {utility.interpretation}")
+        lines.append(
+            f"- {utility.cohort_name}: baseline C={utility.baseline_c_index}, augmented C={utility.augmented_c_index}, delta={utility.delta_c_index}; {utility.interpretation}"
+        )
     lines.extend(["", "## Evidence Grades"])
     for score in result.evidence_scores.values():
         lines.append(f"- {score.dimension}: {score.score}/5. {score.justification}")
@@ -68,11 +76,12 @@ def render_html_report(result: ValidationResult) -> str:
             body_lines.append(f"<li>{escape(line[2:])}</li>")
         elif line:
             body_lines.append(f"<p>{escape(line)}</p>")
-    return """<!doctype html>
+    return (
+        """<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Biomarker Validation Report</title>
+  <title>Biomarker Evidence Assessment Report</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 960px; margin: 40px auto; line-height: 1.5; color: #1f2933; }
     h1, h2 { color: #102a43; }
@@ -81,7 +90,10 @@ def render_html_report(result: ValidationResult) -> str:
   </style>
 </head>
 <body>
-""" + "\n".join(body_lines) + "\n</body>\n</html>\n"
+"""
+        + "\n".join(body_lines)
+        + "\n</body>\n</html>\n"
+    )
 
 
 def write_outputs(result: ValidationResult, out_dir: Path) -> tuple[Path, Path, Path]:

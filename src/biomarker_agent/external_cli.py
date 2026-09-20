@@ -29,7 +29,9 @@ def render_markdown(result) -> str:
         lines.append(f"- {score.dimension}: {score.score}/5. {score.justification}")
     lines.extend(["", "## Literature", f"Query: `{result.literature_query}`"])
     for record in result.literature_records:
-        lines.append(f"- PMID {record.pmid}: {record.title} ({record.publication_date}; {record.evidence_class}) {record.url}")
+        lines.append(
+            f"- PMID {record.pmid}: {record.title} ({record.publication_date}; {record.evidence_class}) {record.url}"
+        )
     lines.extend(["", "## Limitations"])
     for limitation in result.limitations:
         lines.append(f"- {limitation}")
@@ -47,7 +49,7 @@ def render_html(markdown: str) -> str:
             body.append(f"<li>{escape(line[2:])}</li>")
         elif line:
             body.append(f"<p>{escape(line)}</p>")
-    return "<!doctype html>\n<html lang=\"en\"><meta charset=\"utf-8\"><body>\n" + "\n".join(body) + "\n</body></html>\n"
+    return '<!doctype html>\n<html lang="en"><meta charset="utf-8"><body>\n' + "\n".join(body) + "\n</body></html>\n"
 
 
 def write_external_outputs(result, out_dir: Path) -> None:
@@ -60,7 +62,9 @@ def write_external_outputs(result, out_dir: Path) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Validate a biomarker using external literature and public identity databases")
+    parser = argparse.ArgumentParser(
+        description="Assess biomarker evidence using external literature and public identity databases"
+    )
     parser.add_argument("biomarker_id")
     parser.add_argument("--disease", default="LSCC")
     parser.add_argument("--retmax", type=int, default=10)
