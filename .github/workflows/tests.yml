@@ -26,6 +26,8 @@ jobs:
         run: ruff format --check src tests
       - name: Lint
         run: ruff check src tests
+      - name: Check launcher
+        run: bash -n run.sh
       - name: Type check
         run: mypy src
       - name: Run tests

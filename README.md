@@ -74,15 +74,18 @@ Python 3.11 or newer is required.
 ```bash
 git clone https://github.com/Yuan-s6s/biomarker-evidence-assessment.git
 cd biomarker-evidence-assessment
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
+./run.sh demo
 ```
+
+The first run creates a local `.venv`, installs the toolkit, and analyses the
+bundled example data. Later runs start immediately. The example report is
+written to `reports/example/report.html`. An internet connection is required
+the first time so that Python can download the dependencies.
 
 Run a public literature and database check:
 
 ```bash
-biomarker-assess external TP53 --disease "breast cancer" --out reports/tp53_breast
+./run.sh external TP53 --disease "breast cancer" --out reports/tp53_breast
 ```
 
 The disease can be a full name or common abbreviation. Full disease names are
@@ -104,7 +107,7 @@ that do not apply to a workflow are omitted or clearly marked as unavailable.
 Use this when you only have a biomarker and disease:
 
 ```bash
-biomarker-assess external RAB38 --disease LSCC --retmax 10 --out reports/rab38_lscc
+./run.sh external RAB38 --disease LSCC --retmax 10 --out reports/rab38_lscc
 ```
 
 This contacts MyGene.info and NCBI PubMed. It assesses identity certainty and
@@ -116,14 +119,14 @@ verify reported effect sizes, or reanalyse public expression matrices.
 Use the question-driven interface:
 
 ```bash
-biomarker-assess guided --planning-only --out reports/planning
+./run.sh guided --planning-only --out reports/planning
 ```
 
 Or omit `--planning-only` to be asked whether discovery and external-validation
 CSV files are available:
 
 ```bash
-biomarker-assess guided --out reports/confidence
+./run.sh
 ```
 
 ### 3. Reproducible Cohort Assessment
@@ -131,7 +134,7 @@ biomarker-assess guided --out reports/confidence
 Edit `configs/example_request.yaml`, then run:
 
 ```bash
-biomarker-assess cohort configs/example_request.yaml --out reports/example
+./run.sh cohort configs/example_request.yaml --out reports/example
 ```
 
 The included fixture data let you try this workflow immediately. A discovery
@@ -141,6 +144,15 @@ cohorts are optional. Input column requirements are documented in
 
 The original `biomarker-external`, `biomarker-confidence`, and
 `biomarker-agent` commands remain available as compatibility aliases.
+
+For manual installation or development, use the standard editable install:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+biomarker-assess --help
+```
 
 ## Understanding Confidence
 
