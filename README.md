@@ -5,6 +5,30 @@ and validation readiness of RNA and protein expression biomarkers. Give it a
 biomarker and disease to retrieve public identity and PubMed metadata, or
 provide cohort CSV files to run deterministic statistical analyses.
 
+## Why This Toolkit Exists
+
+Finding a candidate expression biomarker is relatively easy; deciding whether
+the supporting evidence is credible, reproducible, and ready for the next
+validation step is much harder. Gene identity, literature, expression data,
+clinical outcomes, and analysis decisions are often reviewed in separate tools
+and then combined manually. That makes it easy to mistake a reported
+association for independent validation or clinical utility.
+
+This toolkit turns a biomarker question into a structured, auditable evidence
+assessment. It does not return a simple "works" or "does not work" verdict.
+Instead, it records what was checked, runs deterministic analyses when cohort
+data are supplied, separates evidence dimensions, and makes missing evidence
+explicit.
+
+| Common problem | How the toolkit addresses it |
+| --- | --- |
+| Ambiguous or inconsistent gene identifiers | Resolves symbols and common database identifiers before assessing evidence |
+| Literature and cohort results reviewed in isolation | Provides consistent workflows and structured reports for public metadata searches and local cohort analyses |
+| Discovery results treated as external confirmation | Keeps discovery and external-validation cohorts separate and never pools their raw values |
+| Conclusions driven mainly by p-values | Reports effect sizes, confidence intervals, discrimination, and robustness measures |
+| Confidence scores with unclear meaning | Uses deterministic rules with per-dimension justifications and explicit evidence gaps |
+| Analyses that are difficult to reproduce | Records inputs, cohort roles, assumptions, provenance, and machine-readable results |
+
 > Research software only. A confidence label summarizes the evidence retrieved
 > and analyses completed; it is **not** the probability that a biomarker works
 > and does not establish clinical validity or utility.
