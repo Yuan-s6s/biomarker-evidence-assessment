@@ -6,7 +6,13 @@ from html import escape
 from typing import Any
 from urllib.parse import urlparse
 
-from biomarker_agent.schemas import EvidenceScore, ExternalEvidenceResult, ValidationResult
+from biomarker_agent.schemas import (
+    ContextOfUse,
+    EvidenceDomainAssessment,
+    EvidenceScore,
+    ExternalEvidenceResult,
+    ValidationResult,
+)
 
 REPORT_CSS = """
 :root {
@@ -221,6 +227,9 @@ tbody tr:hover { background: #fafcfb; }
 .literature-title { margin: 0 0 6px; font-size: 15px; font-weight: 700; }
 .literature-meta { display: flex; flex-wrap: wrap; gap: 7px 14px; color: var(--muted); font-size: 12px; }
 .callout { margin-top: 14px; padding: 12px 14px; border-left: 4px solid var(--amber); background: #fff8e8; color: #5c4615; }
+.claim-panel { margin: 18px 0 0; padding: 16px; border-left: 4px solid var(--blue); background: #f1f6f9; }
+.claim-panel strong { display: block; margin-bottom: 5px; color: #244c67; }
+.claim-panel p { margin: 0; }
 
 .report-footer { padding: 0 0 34px; color: var(--muted); font-size: 12px; }
 
@@ -308,13 +317,22 @@ def _score_tone(score: int) -> str:
 
 def _status_tone(value: str) -> str:
     normalized = value.lower()
-    if normalized in {"a", "b", "high", "passed", "unique", "direct"}:
+    if normalized in {
+        "a",
+        "b",
+        "high",
+        "passed",
+        "unique",
+        "direct",
+        "supported",
+        "independent_association_replication",
+    }:
         return "good"
-    if normalized in {"c", "moderate", "indirect"}:
+    if normalized in {"c", "moderate", "indirect", "partial", "identity_confirmed", "literature_signal"}:
         return "info"
-    if normalized in {"d", "low", "ambiguous", "background"}:
+    if normalized in {"d", "low", "ambiguous", "background", "concern", "retrospective_association"}:
         return "watch"
-    if normalized in {"e", "insufficient", "blocked", "unresolved"}:
+    if normalized in {"e", "insufficient", "blocked", "unresolved", "conflicting"}:
         return "danger"
     return "neutral"
 
@@ -385,6 +403,65 @@ def _score_profile(scores: dict[str, EvidenceScore]) -> str:
             "</div>"
         )
     return '<div class="score-list">' + "".join(rows) + "</div>"
+
+
+def _domain_profile(domains: dict[str, EvidenceDomainAssessment]) -> str:
+    rows = [
+        [
+            _text(_humanize(assessment.dimension)),
+            _tag(_humanize(assessment.status), _status_tone(assessment.status)),
+            _text(assessment.justification),
+        ]
+        for assessment in domains.values()
+    ]
+    return _table(["Evidence domain", "Status", "Basis"], rows, "No evidence domains were assessed.")
+
+
+def _conclusion_panel(supported_claim: str, unmet_requirements: list[str]) -> str:
+    content = (
+        '<div class="claim-panel"><strong>Supported claim</strong>'
+        f"<p>{escape(supported_claim)}</p></div>"
+        "<h3>What is still required</h3>"
+    )
+    return content + _list(unmet_requirements, "No unmet requirements were recorded.")
+
+
+def _context_table(contexts: list[ContextOfUse]) -> str:
+    rows = [
+        [
+            _tag(_humanize(context.category), "info"),
+            _text(context.disease),
+            _text(context.target_population),
+            _text(context.clinical_setting),
+            _text(context.specimen),
+            _text(context.assay),
+            _text(context.endpoint),
+            _text(context.time_horizon),
+            _text(context.reference_standard),
+            _text(context.intervention),
+            _text(context.baseline_comparator),
+            _text(context.intended_action),
+        ]
+        for context in contexts
+    ]
+    return _table(
+        [
+            "Category",
+            "Disease",
+            "Population",
+            "Setting",
+            "Specimen",
+            "Assay",
+            "Endpoint",
+            "Horizon",
+            "Reference standard",
+            "Intervention",
+            "Baseline comparator",
+            "Action",
+        ],
+        rows,
+        "No context of use was supplied.",
+    )
 
 
 def _section(section_id: str, title: str, content: str, intro: str = "") -> str:
@@ -463,22 +540,35 @@ def render_validation_html(result: ValidationResult) -> str:
     generated_at = _display_timestamp(result.provenance.get("generated_at"))
     disease = _text(result.question.get("disease"))
     external_count = sum(dataset.get("role") == "external" for dataset in result.datasets)
+    stage = result.evidence_conclusion.stage
+    context_status = result.evidence_domains.get("context_of_use")
 
     overview = (
         '<div class="metric-grid">'
         + "".join(
             [
-                _metric("Overall evidence grade", _tag(result.overall_grade, _status_tone(result.overall_grade))),
+                _metric("Evidence stage", _tag(_humanize(stage), _status_tone(stage))),
                 _metric(
                     "Entity resolution",
                     _tag(result.entity.resolution_confidence, _status_tone(result.entity.resolution_confidence)),
                     result.entity.mapping_source,
                 ),
-                _metric("Cohorts analysed", _text(len(result.datasets)), f"{external_count} external-validation"),
-                _metric("Biomarker", _text(entity_name), _text(result.entity.id_type)),
+                _metric("Cohorts analysed", _text(len(result.datasets)), f"{external_count} external cohort(s)"),
+                _metric(
+                    "Context of use",
+                    _tag(
+                        _humanize(context_status.status) if context_status else "Not Evaluated",
+                        _status_tone(context_status.status) if context_status else "neutral",
+                    ),
+                    f"{len(result.contexts_of_use)} claim context(s)",
+                ),
             ]
         )
         + "</div>"
+    )
+    overview += _conclusion_panel(
+        result.evidence_conclusion.supported_claim,
+        result.evidence_conclusion.unmet_requirements,
     )
     overview += "<h3>Assessment question</h3>" + _kv_grid(
         [
@@ -506,6 +596,7 @@ def render_validation_html(result: ValidationResult) -> str:
             [
                 _text(name),
                 _tag(str(dataset.get("role", "unknown")), "info" if dataset.get("role") == "external" else "neutral"),
+                _text(dataset.get("disease")),
                 _text(dataset.get("expression_layer")),
                 f'<span class="number">{_text(qc.sample_count if qc else None)}</span>',
                 f'<span class="number">{_text(qc.analyzable_sample_count if qc else None)}</span>',
@@ -514,10 +605,33 @@ def render_validation_html(result: ValidationResult) -> str:
                 f'<span class="number">{_text(qc.event_count if qc else None)}</span>',
                 f'<span class="number">{_text(qc.missing_expression_count if qc else None)}</span>',
                 status,
+                (
+                    "Not applicable"
+                    if dataset.get("role") != "external"
+                    else "independent: "
+                    + _text(dataset.get("independent_from_discovery"))
+                    + "; protocol locked: "
+                    + _text(dataset.get("protocol_locked"))
+                    + "; sample size: "
+                    + ("documented" if dataset.get("sample_size_justification") else "not documented")
+                ),
             ]
         )
     cohorts = _table(
-        ["Cohort", "Role", "Layer", "Samples", "Analyzable", "Tumor", "Normal", "Events", "Missing", "QC"],
+        [
+            "Cohort",
+            "Role",
+            "Disease",
+            "Layer",
+            "Samples",
+            "Analyzable",
+            "Tumor",
+            "Normal",
+            "Events",
+            "Missing",
+            "QC",
+            "Replication gates",
+        ],
         cohort_rows,
     )
     if qc_messages:
@@ -589,13 +703,14 @@ def render_validation_html(result: ValidationResult) -> str:
         [
             _text(item.cohort_name),
             f'<span class="number">{item.bootstrap_iterations}</span>',
+            f'<span class="number">{_text(item.random_seed)}</span>',
             f'<span class="number">{_number(item.diagnostic_direction_stability)}</span>',
             _joined(item.sensitivity_notes),
         ]
         for item in result.robustness.values()
     ]
     robustness = _table(
-        ["Cohort", "Bootstrap iterations", "Direction stability", "Notes"],
+        ["Cohort", "Bootstrap iterations", "Random seed", "Direction stability", "Notes"],
         robustness_rows,
         "No robustness analysis was completed.",
     )
@@ -629,11 +744,21 @@ def render_validation_html(result: ValidationResult) -> str:
             _text(dataset.get("access_date")),
             f'<span class="mono">{_text(dataset.get("expression_path"))}</span>',
             f'<span class="mono">{_text(dataset.get("metadata_path"))}</span>',
+            _text(dataset.get("sample_size_justification")),
         ]
         for dataset in result.datasets
     ]
     provenance = _table(
-        ["Dataset", "Source", "Version", "Access date", "Expression path", "Metadata path"], dataset_rows
+        [
+            "Dataset",
+            "Source",
+            "Version",
+            "Access date",
+            "Expression path",
+            "Metadata path",
+            "Sample-size justification",
+        ],
+        dataset_rows,
     )
     provenance += "<h3>Run provenance</h3>" + _kv_grid(_provenance_items(result.provenance))
 
@@ -641,9 +766,17 @@ def render_validation_html(result: ValidationResult) -> str:
         _section("overview", "Assessment at a glance", overview),
         _section(
             "evidence",
-            "Evidence profile",
-            _score_profile(result.evidence_scores),
-            "Each dimension is scored independently from 0 to 5. Scores describe evidence sufficiency, not a probability of biomarker success.",
+            "Evidence domains",
+            _domain_profile(result.evidence_domains)
+            + "<h3>Legacy heuristic indicators</h3>"
+            + _score_profile(result.evidence_scores),
+            "Domain status and the supported claim are the primary conclusion. Numeric indicators are retained for compatibility, are not a validated scale, and are not combined into a probability.",
+        ),
+        _section(
+            "context",
+            "Context of use",
+            _context_table(result.contexts_of_use),
+            "Each diagnostic, prognostic, or predictive claim should have one explicit population, setting, assay, endpoint, and intended action.",
         ),
         _section("cohorts", "Cohorts and quality control", cohorts),
         _section(
@@ -658,7 +791,12 @@ def render_validation_html(result: ValidationResult) -> str:
             prognostics,
             "Cox-model estimates are associative and should be read with their confidence intervals and warnings.",
         ),
-        _section("utility", "Incremental clinical value", utility),
+        _section(
+            "utility",
+            "Apparent incremental discrimination",
+            utility,
+            "These same-cohort C-index differences are descriptive and do not establish clinical utility.",
+        ),
         _section("robustness", "Robustness", robustness),
         _section("entity", "Entity and assumptions", entity),
         _section("limitations", "Limitations", _list(result.limitations, "No limitations were recorded.", "warning")),
@@ -672,9 +810,9 @@ def render_validation_html(result: ValidationResult) -> str:
     return _document(
         title=f"{entity_name} evidence assessment",
         eyebrow="Cohort evidence report",
-        lead="Deterministic assessment of expression, outcome association, robustness, and evidence gaps.",
-        status_label="Overall evidence grade",
-        status_value=result.overall_grade,
+        lead="Claim-bounded assessment of retrospective association, replication status, and evidence gaps.",
+        status_label="Highest supported stage",
+        status_value=_humanize(stage),
         header_meta=[
             ("Disease", disease),
             ("Specimen", _text(result.question.get("specimen"))),
@@ -683,10 +821,11 @@ def render_validation_html(result: ValidationResult) -> str:
         nav=[
             ("overview", "Overview"),
             ("evidence", "Evidence"),
+            ("context", "Context of use"),
             ("cohorts", "Cohorts & QC"),
             ("diagnostic", "Diagnostic"),
             ("prognostic", "Prognostic"),
-            ("utility", "Clinical value"),
+            ("utility", "Apparent value"),
             ("robustness", "Robustness"),
             ("limitations", "Limitations"),
             ("provenance", "Provenance"),
@@ -713,28 +852,40 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
     entity_name = result.entity.hgnc_symbol or result.entity.query
     direct_count = sum(record.evidence_class == "direct" for record in result.literature_records)
     generated_at = _display_timestamp(result.provenance.get("generated_at"))
+    stage = result.evidence_conclusion.stage
+    context_status = result.evidence_domains.get("context_of_use")
+    contexts = [result.context_of_use] if result.context_of_use is not None else []
 
     overview = (
         '<div class="metric-grid">'
         + "".join(
             [
                 _metric(
-                    "Overall confidence",
-                    _tag(result.overall_confidence, _status_tone(result.overall_confidence)),
-                    "Evidence sufficiency, not probability",
+                    "Evidence stage",
+                    _tag(_humanize(stage), _status_tone(stage)),
+                    "Highest claim supported by retrieved evidence",
                 ),
                 _metric(
                     "Entity resolution",
                     _tag(result.entity.resolution_confidence, _status_tone(result.entity.resolution_confidence)),
                     result.entity.mapping_source,
                 ),
-                _metric("Database records", _text(len(result.database_records)), "Identity metadata"),
                 _metric(
-                    "Literature records", _text(len(result.literature_records)), f"{direct_count} classified direct"
+                    "Context of use",
+                    _tag(
+                        _humanize(context_status.status) if context_status else "Not Evaluated",
+                        _status_tone(context_status.status) if context_status else "neutral",
+                    ),
+                    result.context_of_use.category if result.context_of_use else "not supplied",
                 ),
+                _metric("Literature records", _text(len(result.literature_records)), f"{direct_count} title matches"),
             ]
         )
         + "</div>"
+    )
+    overview += _conclusion_panel(
+        result.evidence_conclusion.supported_claim,
+        result.evidence_conclusion.unmet_requirements,
     )
     overview += "<h3>Assessment scope</h3>" + _kv_grid(
         [
@@ -813,9 +964,17 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
         _section("overview", "Assessment at a glance", overview),
         _section(
             "evidence",
-            "Evidence profile",
-            _score_profile(result.evidence_scores),
-            "Dimensions are scored independently from retrieved metadata and explicit evidence gaps.",
+            "Evidence domains",
+            _domain_profile(result.evidence_domains)
+            + "<h3>Legacy heuristic indicators</h3>"
+            + _score_profile(result.evidence_scores),
+            "Metadata retrieval can support a literature signal only. Numeric indicators are retained for compatibility and do not represent evidence quality or success probability.",
+        ),
+        _section(
+            "context",
+            "Context of use",
+            _context_table(contexts),
+            "A biomarker claim is interpretable only for a specified population, setting, assay, endpoint, and intended action.",
         ),
         _section("entity", "Resolved entity", entity),
         _section("databases", "External database records", databases),
@@ -823,7 +982,7 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
             "literature",
             "Disease-specific literature",
             literature_content,
-            "Evidence classes are based on retrieved title metadata; full text and reported effect sizes are not verified in this mode.",
+            "Title matching is a retrieval aid only; study eligibility, full text, effect estimates, and risk of bias are not appraised in this mode.",
         ),
         _section("limitations", "Limitations", _list(result.limitations, "No limitations were recorded.", "warning")),
         _section("provenance", "Provenance", provenance),
@@ -831,9 +990,9 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
     return _document(
         title=f"{entity_name} external evidence assessment",
         eyebrow="Public evidence report",
-        lead="Identity metadata and disease-specific PubMed records with explicit evidence gaps.",
-        status_label="Overall confidence",
-        status_value=result.overall_confidence,
+        lead="Context-bounded identity and literature retrieval with explicit limits on supported claims.",
+        status_label="Highest supported stage",
+        status_value=_humanize(stage),
         header_meta=[
             ("Disease", _text(result.disease)),
             ("Literature records", _text(len(result.literature_records))),
@@ -842,6 +1001,7 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
         nav=[
             ("overview", "Overview"),
             ("evidence", "Evidence"),
+            ("context", "Context of use"),
             ("entity", "Entity"),
             ("databases", "Databases"),
             ("literature", "Literature"),

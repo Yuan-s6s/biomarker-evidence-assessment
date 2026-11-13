@@ -3,11 +3,19 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any, Literal
 
+from biomarker_agent.evidence import build_external_framework
 from biomarker_agent.external.http import ExternalSourceError
 from biomarker_agent.external.mygene import query_mygene
-from biomarker_agent.external.pubmed import search_pubmed
+from biomarker_agent.external.pubmed import AMBIGUOUS_DISEASE_LABELS, search_pubmed
 from biomarker_agent.resolver import AmbiguousIdentifierError, OfflineResolver, UnresolvedIdentifierError
-from biomarker_agent.schemas import BiomarkerEntity, EvidenceScore, ExternalEvidenceResult, LiteratureRecord
+from biomarker_agent.schemas import (
+    BiomarkerEntity,
+    ContextOfUse,
+    EvidenceScore,
+    ExternalEvidenceResult,
+    LiteratureRecord,
+)
+from biomarker_agent.version import __version__, runtime_versions
 
 
 def _resolve_entity(query: str) -> tuple[BiomarkerEntity, list[dict[str, Any]], list[str]]:
@@ -41,9 +49,16 @@ def _resolve_entity(query: str) -> tuple[BiomarkerEntity, list[dict[str, Any]], 
 
 
 def assess_external_evidence(
-    biomarker_id: str, disease: str, retmax: int = 10, email: str | None = None
+    biomarker_id: str,
+    disease: str,
+    retmax: int = 10,
+    email: str | None = None,
+    context_of_use: ContextOfUse | None = None,
 ) -> ExternalEvidenceResult:
     entity, database_records, limitations = _resolve_entity(biomarker_id)
+    context = context_of_use or ContextOfUse(category="unspecified", disease=disease)
+    if warning := AMBIGUOUS_DISEASE_LABELS.get(disease.strip().upper()):
+        limitations.append(warning)
     symbol = entity.hgnc_symbol or biomarker_id
     literature_query = ""
     literature_records: list[LiteratureRecord] = []
@@ -52,13 +67,15 @@ def assess_external_evidence(
     except ExternalSourceError as exc:
         limitations.append(str(exc))
 
-    scores = _score_external(entity, database_records, literature_records, limitations)
+    scores = _score_external(entity, database_records, literature_records)
     overall = _overall_confidence(scores)
+    evidence_domains, evidence_conclusion = build_external_framework(entity, context, literature_records)
     if not literature_records:
         limitations.append("No PubMed literature records were retrieved for the disease-specific query.")
     limitations.append(
         "External literature evidence is metadata-level only; no full-text extraction or effect-size verification is performed."
     )
+    limitations.append("Publication count and retrieval limit do not increase the supported evidence stage.")
     limitations.append(
         "Public database lookup currently uses MyGene.info identity metadata, not TCGA/CPTAC expression reanalysis."
     )
@@ -68,13 +85,21 @@ def assess_external_evidence(
         literature_query=literature_query,
         literature_records=literature_records,
         database_records=database_records,
+        context_of_use=context,
+        evidence_domains=evidence_domains,
+        evidence_conclusion=evidence_conclusion,
         evidence_scores=scores,
         overall_confidence=overall,
         limitations=limitations,
         provenance={
             "generated_at": datetime.now(UTC).isoformat(),
+            "software": "biomarker-evidence-assessment",
+            "software_version": __version__,
+            "phase": "phase_2_claim_bounded_assessment",
+            "runtime_versions": runtime_versions(),
             "sources": ["MyGene.info v3 query API", "NCBI E-utilities PubMed ESearch/ESummary"],
-            "scoring": "rule_based_metadata_level",
+            "retrieval_limit": retmax,
+            "scoring": "metadata_retrieval_signal_only",
         },
     )
 
@@ -83,10 +108,13 @@ def _score_external(
     entity: BiomarkerEntity,
     database_records: list[dict[str, Any]],
     literature_records: list[LiteratureRecord],
-    limitations: list[str],
 ) -> dict[str, EvidenceScore]:
     direct_count = sum(record.evidence_class == "direct" for record in literature_records)
     indirect_count = sum(record.evidence_class == "indirect" for record in literature_records)
+    resolved_symbol = (entity.hgnc_symbol or "").upper()
+    exact_database_records = [
+        record for record in database_records if str(record.get("symbol", "")).upper() == resolved_symbol
+    ]
     return {
         "id_certainty": EvidenceScore(
             dimension="id_certainty",
@@ -100,21 +128,27 @@ def _score_external(
         "database_identity_support": EvidenceScore(
             dimension="database_identity_support",
             score=5
+            if exact_database_records and entity.resolution_confidence == "unique"
+            else 1
             if database_records
-            else 2
-            if entity.mapping_source.startswith("offline") and entity.resolution_confidence == "unique"
             else 0,
-            justification=f"{len(database_records)} external database candidate record(s) retrieved.",
+            justification=(
+                f"{len(exact_database_records)} exact symbol record(s) and {len(database_records)} total candidate record(s) were retrieved; this supports identity only."
+            ),
         ),
         "direct_literature_support": EvidenceScore(
             dimension="direct_literature_support",
-            score=5 if direct_count >= 5 else 3 if direct_count >= 2 else 1 if direct_count == 1 else 0,
-            justification=f"{direct_count} PubMed record(s) matched the biomarker and disease terms in title metadata.",
+            score=1 if direct_count else 0,
+            justification=(
+                f"{direct_count} PubMed record(s) matched title-level disease terms. Metadata retrieval is a signal, not study-level evidence."
+            ),
         ),
         "indirect_literature_support": EvidenceScore(
             dimension="indirect_literature_support",
-            score=3 if indirect_count >= 3 else 1 if indirect_count else 0,
-            justification=f"{indirect_count} PubMed record(s) mention biomarker evidence without direct disease-title matching.",
+            score=1 if indirect_count else 0,
+            justification=(
+                f"{indirect_count} PubMed record(s) lacked title-level disease matching. Study relevance was not appraised."
+            ),
         ),
         "statistical_validation": EvidenceScore(
             dimension="statistical_validation",
@@ -132,10 +166,6 @@ def _score_external(
 def _overall_confidence(scores: dict[str, EvidenceScore]) -> Literal["high", "moderate", "low", "insufficient"]:
     if scores["id_certainty"].score == 0:
         return "insufficient"
-    if scores["direct_literature_support"].score >= 5 and scores["statistical_validation"].score >= 3:
-        return "high"
-    if scores["direct_literature_support"].score >= 3:
-        return "moderate"
     if scores["direct_literature_support"].score or scores["indirect_literature_support"].score:
         return "low"
     return "insufficient"

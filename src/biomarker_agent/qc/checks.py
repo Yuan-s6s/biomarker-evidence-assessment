@@ -4,7 +4,13 @@ from biomarker_agent.datasets import CohortData
 from biomarker_agent.schemas import QCResult
 
 
-def run_qc(cohort: CohortData, expression_values: dict[str, float | None]) -> QCResult:
+def run_qc(
+    cohort: CohortData,
+    expression_values: dict[str, float | None],
+    *,
+    require_diagnostic: bool = True,
+    require_survival: bool = False,
+) -> QCResult:
     failures: list[str] = []
     warnings: list[str] = []
 
@@ -31,8 +37,10 @@ def run_qc(cohort: CohortData, expression_values: dict[str, float | None]) -> QC
 
     tumor_count = sum(1 for row in analyzable if row.get("diagnosis", "").lower() == "tumor")
     normal_count = sum(1 for row in analyzable if row.get("diagnosis", "").lower() == "normal")
-    if tumor_count < 2 or normal_count < 2:
+    if require_diagnostic and (tumor_count < 2 or normal_count < 2):
         failures.append("diagnostic analysis requires at least two tumour and two normal samples")
+    elif require_diagnostic and (tumor_count < 20 or normal_count < 20):
+        warnings.append("fewer than 20 samples in at least one diagnostic group; estimates will be imprecise")
 
     event_count = 0
     survival_rows = 0
@@ -55,8 +63,12 @@ def run_qc(cohort: CohortData, expression_values: dict[str, float | None]) -> QC
             if event_value not in {0, 1}:
                 failures.append(f"event must be 0 or 1 for sample {row.get('sample_id')}")
             event_count += event_value == 1
-    if survival_rows and event_count < 2:
-        warnings.append("fewer than two survival events; prognostic model may be unstable")
+    if require_survival and not survival_rows:
+        failures.append("prognostic analysis requires survival_time and event data")
+    elif require_survival and event_count < 2:
+        failures.append("prognostic analysis requires at least two survival events")
+    elif survival_rows and event_count < 10:
+        warnings.append("fewer than ten survival events; prognostic estimates will be highly unstable")
 
     return QCResult(
         cohort_name=cohort.config.name,

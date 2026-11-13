@@ -19,9 +19,15 @@ def ask(prompt: str, default: str | None = None) -> str:
     return answer or (default or "")
 
 
+def ask_required(prompt: str) -> str:
+    while not (answer := ask(prompt)):
+        print(f"{prompt} is required.")
+    return answer
+
+
 def run_guided_assessment(out: Path, planning_only: bool = False) -> None:
-    biomarker_id = ask("Biomarker ID")
-    disease = ask("Disease", "LSCC")
+    biomarker_id = ask_required("Biomarker ID")
+    disease = ask_required("Disease (full name recommended)")
     intended_uses = split_csv_answer(
         ask("Intended use(s), comma-separated", "diagnostic,prognostic"), ["diagnostic", "prognostic"]
     )
@@ -60,21 +66,22 @@ def run_guided_assessment(out: Path, planning_only: bool = False) -> None:
         external_metadata_path=external_metadata,
     )
     result = run_confidence_tool(request, out)
-    print(f"Overall grade: {result.overall_grade}")
-    for score in result.evidence_scores.values():
-        print(f"{score.dimension}: {score.score}/5 - {score.justification}")
+    print(f"Evidence stage: {result.evidence_conclusion.stage}")
+    print(f"Supported claim: {result.evidence_conclusion.supported_claim}")
+    for assessment in result.evidence_domains.values():
+        print(f"{assessment.dimension}: {assessment.status} - {assessment.justification}")
     print(f"Wrote {out / 'result.json'}")
     print(f"Wrote {out / 'report.md'}")
     print(f"Wrote {out / 'report.html'}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Ask questions and assess biomarker evidence confidence")
+    parser = argparse.ArgumentParser(description="Ask questions and assess biomarker evidence readiness")
     parser.add_argument("--out", type=Path, default=Path("reports/confidence"))
     parser.add_argument(
         "--planning-only",
         action="store_true",
-        help="Resolve the entity and report confidence gaps without asking for data files",
+        help="Resolve the entity and report evidence gaps without asking for data files",
     )
     args = parser.parse_args()
     run_guided_assessment(args.out, args.planning_only)

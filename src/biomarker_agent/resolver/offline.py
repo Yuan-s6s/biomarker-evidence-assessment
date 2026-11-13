@@ -52,7 +52,7 @@ MOCK_ENTITIES: list[MockEntity] = [
 
 
 class OfflineResolver:
-    """Deterministic mock resolver for Phase 1 local workflows."""
+    """Deterministic mock resolver for local workflows."""
 
     def detect_id_type(self, query: str) -> str:
         value = query.strip()

@@ -24,6 +24,7 @@ def run_bootstrap_direction(
         return RobustnessResult(
             cohort_name=cohort.config.name,
             bootstrap_iterations=iterations,
+            random_seed=seed,
             diagnostic_direction_stability=None,
             sensitivity_notes=["diagnostic bootstrap was not evaluable"],
         )
@@ -37,6 +38,7 @@ def run_bootstrap_direction(
     return RobustnessResult(
         cohort_name=cohort.config.name,
         bootstrap_iterations=iterations,
+        random_seed=seed,
         diagnostic_direction_stability=stable / iterations,
         sensitivity_notes=["fixed-seed nonparametric bootstrap of diagnostic direction"],
     )

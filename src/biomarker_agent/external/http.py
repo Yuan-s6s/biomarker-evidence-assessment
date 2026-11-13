@@ -5,7 +5,9 @@ from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-USER_AGENT = "biomarker-evidence-assessment/0.1"
+from biomarker_agent.version import __version__
+
+USER_AGENT = f"biomarker-evidence-assessment/{__version__}"
 
 
 class ExternalSourceError(RuntimeError):

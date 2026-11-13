@@ -1,5 +1,5 @@
 biomarker_id: RAB38
-disease: LSCC
+disease: lung squamous cell carcinoma
 intended_uses:
   - diagnostic
   - prognostic
@@ -12,16 +12,39 @@ covariates:
   - age
   - stage
 analysis_mode: full_validation
+contexts_of_use:
+  - category: diagnostic
+    disease: lung squamous cell carcinoma
+    target_population: patients undergoing evaluation for suspected lung cancer
+    clinical_setting: research cohort; not for patient care
+    specimen: tumor_tissue
+    assay: normalized bulk RNA expression
+    endpoint: disease_status
+    reference_standard: pathology diagnosis
+    intended_action: prioritize the biomarker for further assay validation
+  - category: prognostic
+    disease: lung squamous cell carcinoma
+    target_population: patients with pathology-confirmed lung squamous cell carcinoma
+    clinical_setting: retrospective research cohort; not for patient care
+    specimen: tumor_tissue
+    assay: normalized bulk RNA expression
+    endpoint: overall_survival
+    baseline_comparator: age and stage model
+    intended_action: prioritize the biomarker for independent prognostic validation
 datasets:
   discovery:
-    name: simulated_lsq_discovery
+    name: simulated_lung_scc_discovery
     role: discovery
+    disease: lung squamous cell carcinoma
     expression_path: tests/fixtures/discovery_expression.csv
     metadata_path: tests/fixtures/discovery_metadata.csv
     expression_layer: rna
   external:
-    - name: simulated_hnscc_external
+    - name: simulated_lung_scc_external
       role: external
+      disease: lung squamous cell carcinoma
       expression_path: tests/fixtures/external_expression.csv
       metadata_path: tests/fixtures/external_metadata.csv
       expression_layer: rna
+      independent_from_discovery: true
+      protocol_locked: true

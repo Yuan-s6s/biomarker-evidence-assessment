@@ -9,13 +9,19 @@ EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 
 
 DISEASE_SYNONYMS = {
-    "LSCC": ["LSCC", "lung squamous cell carcinoma", "laryngeal squamous cell carcinoma"],
+    "LUNG SQUAMOUS CELL CARCINOMA": ["lung squamous cell carcinoma", "LUSC"],
+    "LARYNGEAL SQUAMOUS CELL CARCINOMA": ["laryngeal squamous cell carcinoma", "laryngeal SCC"],
     "HNSCC": ["HNSCC", "head and neck squamous cell carcinoma"],
+}
+
+AMBIGUOUS_DISEASE_LABELS = {
+    "LSCC": "LSCC can refer to lung or laryngeal squamous cell carcinoma; use the full disease name.",
 }
 
 
 def disease_terms(disease: str) -> list[str]:
-    return DISEASE_SYNONYMS.get(disease.upper(), [disease])
+    normalized = disease.strip()
+    return DISEASE_SYNONYMS.get(normalized.upper(), [normalized])
 
 
 def build_pubmed_query(symbol: str, disease: str) -> str:
@@ -34,7 +40,7 @@ def search_pubmed(
         "retmode": "json",
         "retmax": retmax,
         "sort": "relevance",
-        "tool": "biomarker_validation_agent",
+        "tool": "biomarker_evidence_assessment",
     }
     if email:
         params["email"] = email
@@ -47,7 +53,7 @@ def search_pubmed(
         "db": "pubmed",
         "id": ",".join(ids),
         "retmode": "json",
-        "tool": "biomarker_validation_agent",
+        "tool": "biomarker_evidence_assessment",
     }
     if email:
         summary_params["email"] = email

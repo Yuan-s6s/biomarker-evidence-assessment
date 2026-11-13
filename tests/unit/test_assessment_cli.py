@@ -4,10 +4,25 @@ from biomarker_agent.assessment_cli import build_parser
 
 
 def test_external_workflow_arguments():
-    args = build_parser().parse_args(["external", "TP53", "--disease", "breast cancer", "--retmax", "5"])
+    args = build_parser().parse_args(
+        [
+            "external",
+            "TP53",
+            "--disease",
+            "breast cancer",
+            "--category",
+            "prognostic",
+            "--population",
+            "patients with breast cancer",
+            "--retmax",
+            "5",
+        ]
+    )
     assert args.workflow == "external"
     assert args.biomarker_id == "TP53"
     assert args.disease == "breast cancer"
+    assert args.category == "prognostic"
+    assert args.population == "patients with breast cancer"
     assert args.retmax == 5
 
 

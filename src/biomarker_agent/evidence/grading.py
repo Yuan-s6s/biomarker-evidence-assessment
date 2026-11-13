@@ -13,24 +13,26 @@ def grade_evidence(result: ValidationResult) -> tuple[dict[str, EvidenceScore], 
         justification=f"Resolver confidence was {result.entity.resolution_confidence}.",
     )
     any_qc_fail = any(not qc.passed for qc in result.qc)
-    scores["technical_reliability"] = EvidenceScore(
-        dimension="technical_reliability",
-        score=0 if any_qc_fail else 3 if any(qc.warnings for qc in result.qc) else 5,
-        justification="Blocking QC failures were present." if any_qc_fail else "All blocking QC checks passed.",
+    scores["structural_data_quality"] = EvidenceScore(
+        dimension="structural_data_quality",
+        score=0 if any_qc_fail else 2 if any(qc.warnings for qc in result.qc) else 3,
+        justification=(
+            "Blocking structural data failures were present."
+            if any_qc_fail
+            else "Structural CSV checks passed; assay analytical validity was not assessed."
+        ),
     )
-    diagnostic = result.analyses.diagnostic
-    if len(diagnostic) >= 2:
-        discovery_direction = diagnostic[0].direction
-        concordant = all(item.direction == discovery_direction for item in diagnostic[1:])
-        replication_score = 5 if concordant else 0
-        replication_justification = (
-            "External diagnostic direction was concordant with discovery."
-            if concordant
-            else "External diagnostic direction conflicted with discovery."
-        )
-    else:
-        replication_score = 0
-        replication_justification = "No external diagnostic analysis was available."
+    replication = result.evidence_domains.get("independent_replication")
+    replication_score = (
+        3
+        if replication and replication.status == "supported"
+        else 1
+        if replication and replication.status == "partial"
+        else 0
+    )
+    replication_justification = (
+        replication.justification if replication else "Independent replication was not assessed."
+    )
     scores["independent_replication"] = EvidenceScore(
         dimension="independent_replication", score=replication_score, justification=replication_justification
     )
@@ -43,33 +45,31 @@ def grade_evidence(result: ValidationResult) -> tuple[dict[str, EvidenceScore], 
     min_stability = min(stabilities) if stabilities else 0.0
     scores["statistical_robustness"] = EvidenceScore(
         dimension="statistical_robustness",
-        score=5 if min_stability >= 0.9 else 3 if min_stability >= 0.7 else 0,
-        justification=f"Minimum diagnostic bootstrap direction stability was {min_stability:.2f}.",
+        score=2 if min_stability >= 0.9 else 1 if min_stability >= 0.7 else 0,
+        justification=(
+            f"Minimum diagnostic sign-bootstrap stability was {min_stability:.2f}; this does not quantify model optimism."
+        ),
     )
     deltas = [item.delta_c_index for item in result.clinical_utility.values() if item.delta_c_index is not None]
     best_delta = max(deltas) if deltas else 0.0
-    scores["incremental_clinical_value"] = EvidenceScore(
-        dimension="incremental_clinical_value",
-        score=5 if best_delta >= 0.05 else 3 if best_delta > 0 else 0,
-        justification=f"Best apparent delta C-index was {best_delta:.3f}.",
+    scores["apparent_incremental_discrimination"] = EvidenceScore(
+        dimension="apparent_incremental_discrimination",
+        score=1 if best_delta > 0 else 0,
+        justification=f"Best apparent delta C-index was {best_delta:.3f}; no clinical utility claim is supported.",
     )
-    scores["orthogonal_support"] = EvidenceScore(
-        dimension="orthogonal_support", score=0, justification="No protein or orthogonal data were analysed in Phase 1."
+    scores["analytical_validity"] = EvidenceScore(
+        dimension="analytical_validity", score=0, justification="Assay analytical validity was not assessed."
     )
-    scores["transportability"] = EvidenceScore(
-        dimension="transportability",
-        score=3 if len(result.datasets) > 1 else 0,
-        justification="External local cohort was present."
-        if len(result.datasets) > 1
-        else "Only one cohort was present.",
+    scores["locked_external_model_validation"] = EvidenceScore(
+        dimension="locked_external_model_validation",
+        score=0,
+        justification="No locked discovery model was applied unchanged to external data.",
+    )
+    scores["clinical_utility"] = EvidenceScore(
+        dimension="clinical_utility",
+        score=0,
+        justification="Decision impact and prospective clinical utility were not assessed.",
     )
 
-    if any(
-        score.score == 0 for key, score in scores.items() if key in {"technical_reliability", "independent_replication"}
-    ):
-        grade: Literal["C", "D"] = "D"
-    elif scores["statistical_robustness"].score >= 3 and scores["incremental_clinical_value"].score >= 3:
-        grade = "C"
-    else:
-        grade = "D"
+    grade: Literal["C", "D"] = "C" if result.evidence_conclusion.stage == "independent_association_replication" else "D"
     return scores, grade

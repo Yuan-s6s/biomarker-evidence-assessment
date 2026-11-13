@@ -1,21 +1,42 @@
-# Evidence Grading
+# Evidence Conclusions
 
-Evidence dimensions are scored independently from deterministic result fields. There is no opaque aggregate score.
+The primary conclusion is the highest evidence stage supported by completed,
+auditable checks. It is not a probability that the biomarker works.
 
-- ID certainty: uniqueness and traceability of entity mapping.
-- Technical reliability: data and assay quality as indicated by blocking QC and warnings.
-- Independent replication: availability and direction concordance across discovery and external cohorts.
-- Statistical robustness: bootstrap and sensitivity-analysis stability.
-- Orthogonal support: RNA/protein concordance when protein data are supplied.
-- Incremental clinical value: improvement over a baseline clinical model.
-- Transportability: cross-platform, centre, and population evidence.
+## Domain Status
 
-Overall grades are rule-based labels:
+Each evidence domain is reported independently:
 
-- A: strong virtual evidence; prioritise prospective or experimental validation.
-- B: substantial evidence with a clearly defined missing component.
-- C: promising but unstable or supported by limited external evidence.
-- D: insufficient evidence.
-- E: conflicting evidence or a high likelihood of false positivity.
+- `supported`: the implemented requirements for this domain were met.
+- `partial`: some evidence exists, but one or more required gates are missing.
+- `concern`: a quality or applicability problem was detected.
+- `conflicting`: eligible results disagree.
+- `not_evaluated`: the workflow did not assess the domain. This is not evidence against the biomarker.
 
-Phase 1 defaults to conservative grades because it uses local retrospective data and has no external database connection.
+Domains include identity, context of use, structural data quality,
+retrospective association, independent replication, locked external model
+validation, analytical validity, and clinical utility.
+
+## Evidence Stages
+
+Stages are deliberately claim bounded:
+
+1. `identity_confirmed`: identity only.
+2. `literature_signal`: relevant publication metadata retrieved, without study appraisal.
+3. `retrospective_association`: an association estimated in supplied retrospective data.
+4. `independent_association_replication`: a concordant, precise association passes documented replication gates.
+5. `locked_external_model_validation`: a frozen model is applied unchanged in fit-for-purpose external data.
+6. `prospective_clinical_utility`: prospective evidence shows beneficial decision or outcome impact.
+
+The current implementation can automatically support stages 1-4. Stages 5
+and 6 are reserved and must remain `not_evaluated` until those workflows are
+implemented.
+
+## Compatibility Indicators
+
+The historical 0-5 `evidence_scores`, `overall_confidence`, and A-E
+`overall_grade` fields remain for machine-readable backward compatibility.
+They are uncalibrated heuristics, are not averaged into the evidence stage, and
+must not be interpreted as clinical success probabilities. External metadata
+retrieval can score at most one point for literature presence regardless of
+publication count or retrieval limit.

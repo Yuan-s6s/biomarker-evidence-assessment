@@ -17,15 +17,49 @@ def render_markdown_report(result: ValidationResult) -> str:
     lines = [
         f"# Biomarker Evidence Assessment Report: {result.entity.hgnc_symbol or result.entity.query}",
         "",
-        "## Entity Resolution",
-        f"- Query: `{result.entity.query}`",
-        f"- Resolution: {result.entity.resolution_confidence}",
-        f"- HGNC symbol: {result.entity.hgnc_symbol}",
-        f"- Ensembl gene ID: {result.entity.ensembl_gene_id}",
-        f"- UniProt accession: {result.entity.uniprot_accession}",
+        "## Evidence Conclusion",
+        f"- Highest supported stage: **{result.evidence_conclusion.stage}**",
+        f"- Supported claim: {result.evidence_conclusion.supported_claim}",
         "",
-        "## Assumptions",
+        "### Unmet Requirements",
     ]
+    for requirement in result.evidence_conclusion.unmet_requirements:
+        lines.append(f"- {requirement}")
+    lines.extend(
+        [
+            "",
+            "## Evidence Domains",
+        ]
+    )
+    for assessment in result.evidence_domains.values():
+        lines.append(f"- {assessment.dimension}: {assessment.status}. {assessment.justification}")
+    lines.extend(
+        [
+            "",
+            "## Context of Use",
+        ]
+    )
+    for context in result.contexts_of_use:
+        lines.append(
+            f"- {context.category}: disease={context.disease}; population={context.target_population}; "
+            f"setting={context.clinical_setting}; specimen={context.specimen}; assay={context.assay}; "
+            f"endpoint={context.endpoint}; horizon={context.time_horizon}; "
+            f"reference_standard={context.reference_standard}; intervention={context.intervention}; "
+            f"baseline_comparator={context.baseline_comparator}; action={context.intended_action}"
+        )
+    lines.extend(
+        [
+            "",
+            "## Entity Resolution",
+            f"- Query: `{result.entity.query}`",
+            f"- Resolution: {result.entity.resolution_confidence}",
+            f"- HGNC symbol: {result.entity.hgnc_symbol}",
+            f"- Ensembl gene ID: {result.entity.ensembl_gene_id}",
+            f"- UniProt accession: {result.entity.uniprot_accession}",
+            "",
+            "## Assumptions",
+        ]
+    )
     for key, value in result.question.get("assumptions", {}).items():
         lines.append(f"- {key}: {value}")
     lines.extend(["", "## QC"])
@@ -47,15 +81,22 @@ def render_markdown_report(result: ValidationResult) -> str:
             lines.append(
                 f"- {prognostic.cohort_name}: biomarker HR={term.hazard_ratio:.3f} (95% CI {term.ci95[0]:.3f} to {term.ci95[1]:.3f}), C-index={prognostic.concordance_index:.3f}"
             )
-    lines.extend(["", "## Clinical Utility"])
+    lines.extend(["", "## Apparent Incremental Discrimination"])
     for utility in result.clinical_utility.values():
         lines.append(
             f"- {utility.cohort_name}: baseline C={utility.baseline_c_index}, augmented C={utility.augmented_c_index}, delta={utility.delta_c_index}; {utility.interpretation}"
         )
-    lines.extend(["", "## Evidence Grades"])
+    lines.extend(["", "## Robustness"])
+    for robustness in result.robustness.values():
+        lines.append(
+            f"- {robustness.cohort_name}: bootstrap iterations={robustness.bootstrap_iterations}; "
+            f"random seed={robustness.random_seed}; direction stability={robustness.diagnostic_direction_stability}; "
+            f"notes={robustness.sensitivity_notes}"
+        )
+    lines.extend(["", "## Legacy Heuristic Indicators"])
     for score in result.evidence_scores.values():
         lines.append(f"- {score.dimension}: {score.score}/5. {score.justification}")
-    lines.extend(["", f"Overall grade: **{result.overall_grade}**", "", "## Limitations"])
+    lines.extend(["", f"Legacy grade: **{result.overall_grade}**", "", "## Limitations"])
     for limitation in result.limitations:
         lines.append(f"- {limitation}")
     lines.extend(["", "## Recommended Next Validation"])

@@ -26,11 +26,11 @@ explicit.
 | Literature and cohort results reviewed in isolation | Provides consistent workflows and structured reports for public metadata searches and local cohort analyses |
 | Discovery results treated as external confirmation | Keeps discovery and external-validation cohorts separate and never pools their raw values |
 | Conclusions driven mainly by p-values | Reports effect sizes, confidence intervals, discrimination, and robustness measures |
-| Confidence scores with unclear meaning | Uses deterministic rules with per-dimension justifications and explicit evidence gaps |
+| Confidence scores with unclear meaning | Reports the highest supported evidence stage, a bounded claim, domain status, and explicit evidence gaps |
 | Analyses that are difficult to reproduce | Records inputs, cohort roles, assumptions, provenance, and machine-readable results |
 
-> Research software only. A confidence label summarizes the evidence retrieved
-> and analyses completed; it is **not** the probability that a biomarker works
+> Research software only. An evidence stage states the strongest claim supported
+> by the completed workflow. It is **not** the probability that a biomarker works
 > and does not establish clinical validity or utility.
 
 ## What It Does
@@ -44,7 +44,7 @@ resolve gene identity (offline resolver + MyGene.info)
         +--> search disease-specific PubMed records
         |        |
         |        v
-        |    metadata-level evidence confidence
+        |    metadata-level literature signal
         |
         +--> optional cohort analysis
                  (discovery required; external optional)
@@ -60,10 +60,12 @@ The current release includes:
 
 - Gene resolution for symbols, Ensembl IDs, Entrez IDs, and UniProt accessions.
 - MyGene.info identity lookup and NCBI PubMed metadata search.
+- Explicit context-of-use records for each diagnostic or prognostic claim.
+- Claim-bounded evidence stages and per-domain supported/partial/not-evaluated status.
 - Blocking quality-control checks for user-supplied cohort CSVs.
 - Continuous-expression tumour-versus-normal analysis.
 - Cox proportional-hazards analysis with prespecified covariates.
-- Bootstrap directional stability and covariate sensitivity.
+- Fixed-seed bootstrap directional stability.
 - Baseline-versus-biomarker concordance-index comparison.
 - Machine-readable JSON plus human-readable Markdown and HTML reports.
 
@@ -85,7 +87,13 @@ the first time so that Python can download the dependencies.
 Run a public literature and database check:
 
 ```bash
-./run.sh external TP53 --disease "breast cancer" --out reports/tp53_breast
+./run.sh external TP53 \
+  --disease "breast cancer" \
+  --category prognostic \
+  --population "patients with breast cancer" \
+  --specimen "tumor tissue" \
+  --endpoint "overall survival" \
+  --out reports/tp53_breast
 ```
 
 The disease can be a full name or common abbreviation. Full disease names are
@@ -95,7 +103,7 @@ Open `reports/tp53_breast/external_report.html` in a browser, or inspect the
 machine-readable `external_evidence.json`.
 
 HTML reports are self-contained and work offline. They provide a responsive,
-print-friendly overview followed by the underlying evidence scores, cohort and
+print-friendly overview followed by the supported claim, evidence-domain status, cohort and
 quality-control details, effect estimates with confidence intervals, model
 terms, limitations, recommended next steps, and full run provenance. Sections
 that do not apply to a workflow are omitted or clearly marked as unavailable.
@@ -107,14 +115,20 @@ that do not apply to a workflow are omitted or clearly marked as unavailable.
 Use this when you only have a biomarker and disease:
 
 ```bash
-./run.sh external RAB38 --disease LSCC --retmax 10 --out reports/rab38_lscc
+./run.sh external RAB38 \
+  --disease "lung squamous cell carcinoma" \
+  --category diagnostic \
+  --retmax 10 \
+  --out reports/rab38_lung_scc
 ```
 
-This contacts MyGene.info and NCBI PubMed. It assesses identity certainty and
-the amount of disease-specific literature found. It does not inspect full text,
-verify reported effect sizes, or reanalyse public expression matrices.
+This contacts MyGene.info and NCBI PubMed. It reports identity support and a
+metadata-level literature signal. Publication count and `--retmax` do not raise
+the evidence stage. It does not inspect full text, verify reported effect sizes,
+appraise study bias, or reanalyse public expression matrices. Ambiguous disease
+labels such as `LSCC` should be replaced by the full disease name.
 
-### 2. Interactive Confidence Check
+### 2. Guided Evidence Assessment
 
 Use the question-driven interface:
 
@@ -154,24 +168,23 @@ python -m pip install -e .
 biomarker-assess --help
 ```
 
-## Understanding Confidence
+## Understanding Evidence Stages
 
-Confidence means **confidence in the available evidence package**, not model
-accuracy and not a probability of future clinical success. The external mode
-scores these dimensions independently from 0 to 5:
+The primary result is a highest supported stage, not a confidence probability:
 
-| Dimension | Meaning |
+| Stage | Claim supported |
 | --- | --- |
-| ID certainty | How confidently the input maps to one biological entity |
-| Database identity support | Whether an external gene record was retrieved |
-| Direct literature support | Disease-specific records found in title metadata |
-| Indirect literature support | Related records without direct disease-title matching |
-| Statistical validation | Whether expression/outcome data were reanalysed |
-| Clinical utility | Whether a biomarker improved a baseline clinical model |
+| `identity_confirmed` | The submitted identifier maps to one biological entity |
+| `literature_signal` | Disease-related publication metadata were retrieved; study evidence is not yet appraised |
+| `retrospective_association` | An association was estimated in supplied retrospective data |
+| `independent_association_replication` | A precise, concordant association passed documented independence, disease-match, protocol-lock, and sample-size gates |
+| `locked_external_model_validation` | Reserved for applying a frozen model unchanged to fit-for-purpose external data |
+| `prospective_clinical_utility` | Reserved for prospective evidence that using the biomarker improves decisions or outcomes |
 
-Because external mode currently retrieves metadata rather than expression
-matrices, its statistical-validation and clinical-utility scores remain zero.
-See [docs/evidence_grading.md](docs/evidence_grading.md) for the grading rules and
+Each domain is separately labelled `supported`, `partial`, `concern`,
+`conflicting`, or `not_evaluated`. Legacy 0-5 indicators and `overall_grade`
+remain in JSON for compatibility, but are not a validated scale and are not the
+report's main conclusion. See [docs/evidence_grading.md](docs/evidence_grading.md) and
 [docs/statistical_analysis_plan.md](docs/statistical_analysis_plan.md) for the
 analysis assumptions.
 
@@ -179,9 +192,10 @@ analysis assumptions.
 
 Expression CSV files use samples as rows and biomarkers as columns. Metadata
 CSV files use one row per sample and include `sample_id`; diagnostic analysis
-also needs `diagnosis`, while survival analysis needs `survival_time` and
-`event` columns. The example configuration and fixtures show a complete
-runnable layout.
+needs `diagnosis`, while survival analysis needs `survival_time` and `event`.
+Each claim should define its population, setting, specimen, assay, endpoint,
+time horizon or reference standard, and intended action. The example
+configuration and fixtures show a runnable layout.
 
 Discovery and external-validation cohorts remain separate throughout the
 pipeline. Cut-offs must not be selected and evaluated in the same validation

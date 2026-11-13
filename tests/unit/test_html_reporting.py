@@ -24,7 +24,14 @@ def test_validation_html_contains_detailed_sections_and_escapes_content():
     assert "Cohorts and quality control" in html
     assert "Mean difference" in html
     assert "Hazard ratio" in html
-    assert "Incremental clinical value" in html
+    assert "Apparent incremental discrimination" in html
+    assert "Highest supported stage" in html
+    assert "Retrospective Association" in html
+    assert "Supported claim" in html
+    assert "Context of use" in html
+    assert "Reference standard" in html
+    assert "Random seed" in html
+    assert "Legacy heuristic indicators" in html
     assert "Run provenance" in html
     assert 'role="meter"' in html
     assert '<script>alert("unsafe")</script>' not in html
