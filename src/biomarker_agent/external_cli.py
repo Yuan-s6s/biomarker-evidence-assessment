@@ -8,6 +8,7 @@ from pathlib import Path
 from biomarker_agent.external import assess_external_evidence
 from biomarker_agent.external.pubmed import DEFAULT_MAX_RECORDS, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from biomarker_agent.reporting.html import render_external_html
+from biomarker_agent.reporting.summary import build_external_report_summary
 from biomarker_agent.schemas import ContextOfUse, ExternalEvidenceResult
 
 BIOMARKER_CATEGORIES = [
@@ -92,52 +93,74 @@ def context_from_args(args: argparse.Namespace) -> ContextOfUse:
 
 def render_markdown(result: ExternalEvidenceResult) -> str:
     flow = result.literature_summary
+    summary = build_external_report_summary(result)
     lines = [
         f"# External Biomarker Evidence: {result.entity.hgnc_symbol or result.entity.query}",
         "",
         f"Disease: {result.disease}",
         f"Evidence stage: **{result.evidence_conclusion.stage}**",
-        f"Supported claim: {result.evidence_conclusion.supported_claim}",
         "",
-        "## Context of Use",
-        f"- Category: {result.context_of_use.category if result.context_of_use else 'not supplied'}",
-        f"- Target population: {result.context_of_use.target_population if result.context_of_use else None}",
-        f"- Clinical setting: {result.context_of_use.clinical_setting if result.context_of_use else None}",
-        f"- Specimen: {result.context_of_use.specimen if result.context_of_use else None}",
-        f"- Assay: {result.context_of_use.assay if result.context_of_use else None}",
-        f"- Endpoint: {result.context_of_use.endpoint if result.context_of_use else None}",
-        f"- Time horizon: {result.context_of_use.time_horizon if result.context_of_use else None}",
-        f"- Reference standard: {result.context_of_use.reference_standard if result.context_of_use else None}",
-        f"- Intervention: {result.context_of_use.intervention if result.context_of_use else None}",
-        f"- Baseline comparator: {result.context_of_use.baseline_comparator if result.context_of_use else None}",
-        f"- Intended action: {result.context_of_use.intended_action if result.context_of_use else None}",
+        "## Assessment Summary",
+        f"**Bottom line:** {summary.headline}",
         "",
-        "## Entity",
-        f"- Query: `{result.entity.query}`",
-        f"- Symbol: {result.entity.hgnc_symbol}",
-        f"- Ensembl: {result.entity.ensembl_gene_id}",
-        f"- Entrez: {result.entity.entrez_id}",
-        f"- UniProt: {result.entity.uniprot_accession}",
-        f"- Resolution: {result.entity.resolution_confidence} ({result.entity.mapping_source})",
+        "### Key Findings",
+        *[f"- {finding}" for finding in summary.key_findings],
         "",
-        "## Literature Flow",
-        f"- Total PubMed hits: {flow.total_hits}",
-        f"- Configured retrieval cap: {flow.retrieval_cap if flow.retrieval_cap is not None else 'all up to 10,000'}",
-        f"- Page size: {flow.page_size}",
-        f"- Pages fetched: {flow.pages_fetched}",
-        f"- Records retrieved: {flow.records_retrieved}",
-        f"- Records screened: {flow.records_screened}",
-        f"- Automated title/abstract candidates included: {flow.records_included}",
-        f"- Automated exclusions: {flow.records_excluded}",
-        f"- Uncertain records: {flow.records_uncertain}",
-        f"- Abstracts available: {flow.abstracts_available}",
-        f"- Records with same-sentence biomarker effect-and-95%-CI candidates: {flow.records_with_effect_estimates}",
-        f"- Effect candidates extracted: {flow.effect_estimates_extracted}",
-        f"- Retrieval truncated: {flow.truncated}",
-        f"- Retrieval warnings: {flow.retrieval_warnings or 'none'}",
+        f"**Supported claim:** {summary.supported_claim}",
         "",
-        "## Evidence Domains",
+        f"**Interpretation boundary:** {summary.interpretation_boundary}",
     ]
+    if summary.priority_next_steps:
+        lines.extend(
+            [
+                "",
+                "### Priority Next Steps",
+                *[f"- {step}" for step in summary.priority_next_steps],
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "## Context of Use",
+            f"- Category: {result.context_of_use.category if result.context_of_use else 'not supplied'}",
+            f"- Target population: {result.context_of_use.target_population if result.context_of_use else None}",
+            f"- Clinical setting: {result.context_of_use.clinical_setting if result.context_of_use else None}",
+            f"- Specimen: {result.context_of_use.specimen if result.context_of_use else None}",
+            f"- Assay: {result.context_of_use.assay if result.context_of_use else None}",
+            f"- Endpoint: {result.context_of_use.endpoint if result.context_of_use else None}",
+            f"- Time horizon: {result.context_of_use.time_horizon if result.context_of_use else None}",
+            f"- Reference standard: {result.context_of_use.reference_standard if result.context_of_use else None}",
+            f"- Intervention: {result.context_of_use.intervention if result.context_of_use else None}",
+            f"- Baseline comparator: {result.context_of_use.baseline_comparator if result.context_of_use else None}",
+            f"- Intended action: {result.context_of_use.intended_action if result.context_of_use else None}",
+            "",
+            "## Entity",
+            f"- Query: `{result.entity.query}`",
+            f"- Symbol: {result.entity.hgnc_symbol}",
+            f"- Ensembl: {result.entity.ensembl_gene_id}",
+            f"- Entrez: {result.entity.entrez_id}",
+            f"- UniProt: {result.entity.uniprot_accession}",
+            f"- Resolution: {result.entity.resolution_confidence} ({result.entity.mapping_source})",
+            "",
+            "## Literature Flow",
+            f"- Total PubMed hits: {flow.total_hits}",
+            f"- Configured retrieval cap: {flow.retrieval_cap if flow.retrieval_cap is not None else 'all up to 10,000'}",
+            f"- Page size: {flow.page_size}",
+            f"- Pages fetched: {flow.pages_fetched}",
+            f"- Records retrieved: {flow.records_retrieved}",
+            f"- Records screened: {flow.records_screened}",
+            f"- Automated title/abstract candidates included: {flow.records_included}",
+            f"- Automated exclusions: {flow.records_excluded}",
+            f"- Uncertain records: {flow.records_uncertain}",
+            f"- Abstracts available: {flow.abstracts_available}",
+            f"- Records with same-sentence biomarker effect-and-95%-CI candidates: {flow.records_with_effect_estimates}",
+            f"- Effect candidates extracted: {flow.effect_estimates_extracted}",
+            f"- Retrieval truncated: {flow.truncated}",
+            f"- Retrieval warnings: {flow.retrieval_warnings or 'none'}",
+            "",
+            "## Evidence Domains",
+        ]
+    )
     for assessment in result.evidence_domains.values():
         lines.append(f"- {assessment.dimension}: {assessment.status}. {assessment.justification}")
     lines.extend(["", "## Unmet Requirements"])

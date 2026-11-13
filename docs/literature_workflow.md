@@ -48,6 +48,15 @@ retrieval must not be interpreted as a complete literature set.
 “Included” always means **included by automated title/abstract screening as a
 candidate**. It does not mean that a study passed full-text eligibility review.
 
+## Report Summary
+
+HTML and Markdown outputs begin with a deterministic assessment summary. It
+states the highest supported stage, identifier status, retrieval and screening
+counts, retrieval completeness, effect-candidate count, supported claim,
+interpretation boundary, and up to three priority next steps. Every sentence is
+constructed from the validated result object; the summary does not use an LLM
+or infer unrecorded statistics.
+
 ## Automated Screening
 
 A record is an `include_candidate` when its title and abstract together contain:

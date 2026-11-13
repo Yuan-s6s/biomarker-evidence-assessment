@@ -4,7 +4,7 @@ import platform
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as distribution_version
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 
 def runtime_versions() -> dict[str, str]:

@@ -80,7 +80,7 @@ def test_external_assessment_with_mocked_sources(monkeypatch):
     assert result.evidence_domains["study_quality"].status == "not_evaluated"
     assert result.literature_summary.total_hits == 1
     assert result.literature_summary.records_included == 1
-    assert result.provenance["software_version"] == "0.3.0"
+    assert result.provenance["software_version"] == "0.3.1"
     assert result.provenance["runtime_versions"]["pydantic"]
     assert any("lung or laryngeal" in limitation for limitation in result.limitations)
 

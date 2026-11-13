@@ -236,6 +236,14 @@ class EvidenceConclusion(BaseModel):
     unmet_requirements: list[str] = Field(default_factory=list)
 
 
+class ExternalReportSummary(BaseModel):
+    headline: str = Field(min_length=1)
+    key_findings: list[str] = Field(min_length=1)
+    supported_claim: str = Field(min_length=1)
+    interpretation_boundary: str = Field(min_length=1)
+    priority_next_steps: list[str] = Field(default_factory=list)
+
+
 class EffectEstimateCandidate(BaseModel):
     measure: EffectMeasure
     estimate: float

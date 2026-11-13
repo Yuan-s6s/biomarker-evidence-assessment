@@ -6,6 +6,7 @@ from html import escape
 from typing import Any
 from urllib.parse import urlparse
 
+from biomarker_agent.reporting.summary import build_external_report_summary
 from biomarker_agent.schemas import (
     ContextOfUse,
     EvidenceDomainAssessment,
@@ -865,6 +866,22 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
     context_status = result.evidence_domains.get("context_of_use")
     contexts = [result.context_of_use] if result.context_of_use is not None else []
     flow = result.literature_summary
+    summary = build_external_report_summary(result)
+
+    summary_content = (
+        '<div class="claim-panel"><strong>Bottom line</strong>'
+        f"<p>{escape(summary.headline)}</p></div>"
+        "<h3>Key findings</h3>"
+        + _list(summary.key_findings, "No summary findings were available.")
+        + '<div class="query-block"><strong>Supported claim</strong><br>'
+        + escape(summary.supported_claim)
+        + "</div>"
+        + '<div class="callout"><strong>Interpretation boundary</strong><br>'
+        + escape(summary.interpretation_boundary)
+        + "</div>"
+    )
+    if summary.priority_next_steps:
+        summary_content += "<h3>Priority next steps</h3>" + _list(summary.priority_next_steps, "")
 
     overview = (
         '<div class="metric-grid">'
@@ -1028,6 +1045,7 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
 
     provenance = _kv_grid(_provenance_items(result.provenance))
     sections = [
+        _section("summary", "Assessment summary", summary_content),
         _section("overview", "Assessment at a glance", overview),
         _section(
             "evidence",
@@ -1073,6 +1091,7 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
             ("Generated", generated_at),
         ],
         nav=[
+            ("summary", "Summary"),
             ("overview", "Overview"),
             ("evidence", "Evidence"),
             ("context", "Context of use"),
