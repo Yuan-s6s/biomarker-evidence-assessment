@@ -4,9 +4,11 @@ from biomarker_agent.pipeline import load_request, run_validation
 from biomarker_agent.reporting.html import render_external_html, render_validation_html
 from biomarker_agent.schemas import (
     BiomarkerEntity,
+    EffectEstimateCandidate,
     EvidenceScore,
     ExternalEvidenceResult,
     LiteratureRecord,
+    LiteratureSearchSummary,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -64,8 +66,31 @@ def test_external_html_contains_source_details_and_rejects_unsafe_links():
                 url="javascript:alert(1)",
                 evidence_class="direct",
                 matched_terms=["Example disease"],
+                abstract_available=True,
+                screening_decision="include_candidate",
+                screening_reasons=["test inclusion"],
+                effect_estimates=[
+                    EffectEstimateCandidate(
+                        measure="hazard_ratio",
+                        estimate=2.1,
+                        ci95=(1.2, 3.4),
+                    )
+                ],
             )
         ],
+        literature_summary=LiteratureSearchSummary(
+            total_hits=12,
+            retrieval_cap=1,
+            page_size=1,
+            pages_fetched=1,
+            records_retrieved=1,
+            records_screened=1,
+            records_included=1,
+            abstracts_available=1,
+            records_with_effect_estimates=1,
+            effect_estimates_extracted=1,
+            truncated=True,
+        ),
         database_records=[
             {
                 "source": "MyGene.info",
@@ -94,6 +119,11 @@ def test_external_html_contains_source_details_and_rejects_unsafe_links():
     assert "External database records" in html
     assert "MyGene.info" in html
     assert "Disease-specific literature" in html
+    assert "Literature flow" in html
+    assert "PubMed total hits" in html
+    assert "Records with effect candidates" in html
+    assert "Hazard Ratio 2.1" in html
+    assert "Retrieval truncated" in html
     assert "PMID" in html
     assert "FAKE1 &lt;expression&gt; study" in html
     assert 'href="#"' in html

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from biomarker_agent.external import assess_external_evidence
+from biomarker_agent.external.pubmed import DEFAULT_MAX_RECORDS, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from biomarker_agent.reporting.html import render_external_html
 from biomarker_agent.schemas import ContextOfUse, ExternalEvidenceResult
 
@@ -18,6 +20,43 @@ BIOMARKER_CATEGORIES = [
     "safety",
     "unspecified",
 ]
+
+
+def _nonnegative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be zero or greater")
+    return parsed
+
+
+def _page_size(value: str) -> int:
+    parsed = int(value)
+    if not 1 <= parsed <= MAX_PAGE_SIZE:
+        raise argparse.ArgumentTypeError(f"must be between 1 and {MAX_PAGE_SIZE}")
+    return parsed
+
+
+def add_literature_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--max-records",
+        "--retmax",
+        dest="retmax",
+        type=_nonnegative_int,
+        default=DEFAULT_MAX_RECORDS,
+        metavar="N",
+        help=(
+            f"Maximum PubMed records to retrieve (default: {DEFAULT_MAX_RECORDS}); "
+            "use 0 for all available records up to the 10,000-record ESearch limit"
+        ),
+    )
+    parser.add_argument(
+        "--page-size",
+        type=_page_size,
+        default=DEFAULT_PAGE_SIZE,
+        metavar="N",
+        help=f"PubMed EFetch page size (default: {DEFAULT_PAGE_SIZE}; range: 1-{MAX_PAGE_SIZE})",
+    )
+    parser.add_argument("--email", help="Optional email passed to NCBI E-utilities")
 
 
 def add_context_arguments(parser: argparse.ArgumentParser) -> None:
@@ -52,6 +91,7 @@ def context_from_args(args: argparse.Namespace) -> ContextOfUse:
 
 
 def render_markdown(result: ExternalEvidenceResult) -> str:
+    flow = result.literature_summary
     lines = [
         f"# External Biomarker Evidence: {result.entity.hgnc_symbol or result.entity.query}",
         "",
@@ -80,6 +120,22 @@ def render_markdown(result: ExternalEvidenceResult) -> str:
         f"- UniProt: {result.entity.uniprot_accession}",
         f"- Resolution: {result.entity.resolution_confidence} ({result.entity.mapping_source})",
         "",
+        "## Literature Flow",
+        f"- Total PubMed hits: {flow.total_hits}",
+        f"- Configured retrieval cap: {flow.retrieval_cap if flow.retrieval_cap is not None else 'all up to 10,000'}",
+        f"- Page size: {flow.page_size}",
+        f"- Pages fetched: {flow.pages_fetched}",
+        f"- Records retrieved: {flow.records_retrieved}",
+        f"- Records screened: {flow.records_screened}",
+        f"- Automated title/abstract candidates included: {flow.records_included}",
+        f"- Automated exclusions: {flow.records_excluded}",
+        f"- Uncertain records: {flow.records_uncertain}",
+        f"- Abstracts available: {flow.abstracts_available}",
+        f"- Records with same-sentence biomarker effect-and-95%-CI candidates: {flow.records_with_effect_estimates}",
+        f"- Effect candidates extracted: {flow.effect_estimates_extracted}",
+        f"- Retrieval truncated: {flow.truncated}",
+        f"- Retrieval warnings: {flow.retrieval_warnings or 'none'}",
+        "",
         "## Evidence Domains",
     ]
     for assessment in result.evidence_domains.values():
@@ -89,8 +145,14 @@ def render_markdown(result: ExternalEvidenceResult) -> str:
         lines.append(f"- {requirement}")
     lines.extend(["", "## Literature", f"Query: `{result.literature_query}`"])
     for record in result.literature_records:
+        estimates = ", ".join(
+            f"{item.measure}={item.estimate} (95% CI {item.ci95[0]}-{item.ci95[1]})" for item in record.effect_estimates
+        )
+        screening_reasons = "; ".join(record.screening_reasons) or "none recorded"
         lines.append(
-            f"- PMID {record.pmid}: {record.title} ({record.publication_date}; {record.evidence_class}) {record.url}"
+            f"- PMID {record.pmid}: {record.title} ({record.publication_date}; {record.evidence_class}; "
+            f"screen={record.screening_decision}; screen basis={screening_reasons}; abstract={record.abstract_available}; "
+            f"effect candidates={estimates or 'none'}) {record.url}"
         )
     lines.extend(["", "## Limitations"])
     for limitation in result.limitations:
@@ -113,8 +175,7 @@ def main() -> None:
     )
     parser.add_argument("biomarker_id")
     parser.add_argument("--disease", required=True)
-    parser.add_argument("--retmax", type=int, default=10)
-    parser.add_argument("--email", help="Optional email passed to NCBI E-utilities")
+    add_literature_arguments(parser)
     parser.add_argument("--out", type=Path, default=Path("reports/external"))
     add_context_arguments(parser)
     args = parser.parse_args()
@@ -125,12 +186,21 @@ def main() -> None:
         retmax=args.retmax,
         email=args.email,
         context_of_use=context_from_args(args),
+        page_size=args.page_size,
+        api_key=os.environ.get("NCBI_API_KEY"),
     )
     write_external_outputs(result, args.out)
     print(f"Evidence stage: {result.evidence_conclusion.stage}")
     print(f"Supported claim: {result.evidence_conclusion.supported_claim}")
     for assessment in result.evidence_domains.values():
         print(f"{assessment.dimension}: {assessment.status} - {assessment.justification}")
+    flow = result.literature_summary
+    print(
+        "Literature flow: "
+        f"{flow.total_hits} total hits; {flow.records_retrieved} retrieved; "
+        f"{flow.records_included} automated-screen candidates; "
+        f"{flow.records_with_effect_estimates} with same-sentence biomarker effect-and-95%-CI candidates"
+    )
     print(f"Wrote {args.out / 'external_evidence.json'}")
     print(f"Wrote {args.out / 'external_report.md'}")
     print(f"Wrote {args.out / 'external_report.html'}")

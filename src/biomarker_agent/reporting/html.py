@@ -148,6 +148,7 @@ h3 { margin: 24px 0 10px; color: #2b3a36; font-size: 16px; letter-spacing: 0; }
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
+.metric-grid + .metric-grid { margin-top: 10px; }
 .metric {
   min-height: 92px;
   padding: 14px;
@@ -325,14 +326,23 @@ def _status_tone(value: str) -> str:
         "unique",
         "direct",
         "supported",
+        "include_candidate",
         "independent_association_replication",
     }:
         return "good"
     if normalized in {"c", "moderate", "indirect", "partial", "identity_confirmed", "literature_signal"}:
         return "info"
-    if normalized in {"d", "low", "ambiguous", "background", "concern", "retrospective_association"}:
+    if normalized in {
+        "d",
+        "low",
+        "ambiguous",
+        "background",
+        "concern",
+        "uncertain",
+        "retrospective_association",
+    }:
         return "watch"
-    if normalized in {"e", "insufficient", "blocked", "unresolved", "conflicting"}:
+    if normalized in {"e", "insufficient", "blocked", "unresolved", "conflicting", "exclude"}:
         return "danger"
     return "neutral"
 
@@ -850,11 +860,11 @@ def _nested_identifier(value: Any) -> str:
 
 def render_external_html(result: ExternalEvidenceResult) -> str:
     entity_name = result.entity.hgnc_symbol or result.entity.query
-    direct_count = sum(record.evidence_class == "direct" for record in result.literature_records)
     generated_at = _display_timestamp(result.provenance.get("generated_at"))
     stage = result.evidence_conclusion.stage
     context_status = result.evidence_domains.get("context_of_use")
     contexts = [result.context_of_use] if result.context_of_use is not None else []
+    flow = result.literature_summary
 
     overview = (
         '<div class="metric-grid">'
@@ -878,7 +888,17 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
                     ),
                     result.context_of_use.category if result.context_of_use else "not supplied",
                 ),
-                _metric("Literature records", _text(len(result.literature_records)), f"{direct_count} title matches"),
+                _metric("PubMed total hits", _text(flow.total_hits), "Before applying the retrieval cap"),
+                _metric("Records retrieved", _text(flow.records_retrieved), f"{flow.pages_fetched} page(s)"),
+                _metric("Automated-screen candidates", _text(flow.records_included), "Title/abstract rules only"),
+                _metric(
+                    "Biomarker effect-and-95%-CI candidates",
+                    _text(flow.records_with_effect_estimates),
+                    "Rule parsed from abstracts; unverified",
+                ),
+                _metric(
+                    "Abstracts available", _text(flow.abstracts_available), "Processed transiently; not reproduced"
+                ),
             ]
         )
         + "</div>"
@@ -892,9 +912,42 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
             ("Biomarker query", _text(result.entity.query)),
             ("Resolved symbol", _text(result.entity.hgnc_symbol)),
             ("Disease", _text(result.disease)),
-            ("Evidence mode", "Public identity and literature metadata"),
+            ("Evidence mode", "Public identity plus automated PubMed title/abstract screening"),
         ]
     )
+
+    flow_rows = [
+        ["PubMed query hits", _text(flow.total_hits), "All records reported by ESearch before retrieval limits"],
+        ["Retrieved", _text(flow.records_retrieved), "Unique records parsed from paginated EFetch responses"],
+        ["Screened", _text(flow.records_screened), "Automated title/abstract rules applied"],
+        ["Included candidates", _text(flow.records_included), "Biomarker, disease, and relevance terms present"],
+        ["Excluded", _text(flow.records_excluded), "One or more required terms absent from title/abstract"],
+        ["Uncertain", _text(flow.records_uncertain), "Insufficient metadata for an automated decision"],
+        ["Abstracts available", _text(flow.abstracts_available), "Abstract text processed transiently"],
+        [
+            "Records with effect candidates",
+            _text(flow.records_with_effect_estimates),
+            "At least one same-sentence biomarker effect estimate paired with a 95% CI was rule parsed",
+        ],
+        ["Effect candidates extracted", _text(flow.effect_estimates_extracted), "Unverified candidate values"],
+    ]
+    flow_content = _table(["Flow step", "Count", "Definition"], flow_rows)
+    if flow.truncated:
+        cap = "all available up to 10,000" if flow.retrieval_cap is None else str(flow.retrieval_cap)
+        flow_content += (
+            '<div class="callout"><strong>Retrieval truncated.</strong> '
+            f"The configured retrieval cap was {escape(cap)}; compare retrieved records with total hits.</div>"
+        )
+    if flow.retrieval_warnings:
+        flow_content += (
+            '<div class="callout"><strong>Retrieval warning(s)</strong>'
+            + _list(
+                flow.retrieval_warnings,
+                "",
+                "warning",
+            )
+            + "</div>"
+        )
 
     entity = _kv_grid(
         [
@@ -942,6 +995,11 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
     literature_items: list[str] = []
     for record in result.literature_records:
         matched = _joined(record.matched_terms, "No matched terms recorded")
+        estimates = "; ".join(
+            f"{_humanize(item.measure)} {_number(item.estimate)} "
+            f"(95% CI {_number(item.ci95[0])} to {_number(item.ci95[1])})"
+            for item in record.effect_estimates
+        )
         literature_items.append(
             '<article class="literature-item">'
             f'<p class="literature-title"><a href="{_safe_url(record.url)}">{escape(record.title)}</a></p>'
@@ -949,8 +1007,17 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
             f'<span>PMID <span class="mono">{escape(record.pmid)}</span></span>'
             f"<span>{_text(record.journal)}</span><span>{_text(record.publication_date)}</span>"
             f"<span>{_tag(record.evidence_class, _status_tone(record.evidence_class))}</span>"
+            f"<span>{_tag(_humanize(record.screening_decision), _status_tone(record.screening_decision))}</span>"
+            f"<span>Abstract: {_text(record.abstract_available)}</span>"
             f"<span>Matched terms: {matched}</span>"
-            "</div></article>"
+            f"<span>Screen basis: {_joined(record.screening_reasons, 'None recorded')}</span>"
+            "</div>"
+            + (
+                f'<div class="callout"><strong>Unverified abstract effect candidate(s)</strong><br>{escape(estimates)}</div>'
+                if estimates
+                else ""
+            )
+            + "</article>"
         )
     literature_content = f'<div class="query-block"><strong>PubMed query</strong><br><span class="mono">{escape(result.literature_query or "No query recorded")}</span></div>'
     literature_content += (
@@ -968,7 +1035,7 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
             _domain_profile(result.evidence_domains)
             + "<h3>Legacy heuristic indicators</h3>"
             + _score_profile(result.evidence_scores),
-            "Metadata retrieval can support a literature signal only. Numeric indicators are retained for compatibility and do not represent evidence quality or success probability.",
+            "Title/abstract retrieval and automated screening can support a literature signal only. Numeric indicators are retained for compatibility and do not represent evidence quality or success probability.",
         ),
         _section(
             "context",
@@ -979,10 +1046,16 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
         _section("entity", "Resolved entity", entity),
         _section("databases", "External database records", databases),
         _section(
+            "literature-flow",
+            "Literature flow",
+            flow_content,
+            "Counts distinguish PubMed hits, records actually retrieved, automated screening candidates, and records with rule-parsed same-sentence biomarker effect-and-95%-CI candidates. This is not full-text screening.",
+        ),
+        _section(
             "literature",
             "Disease-specific literature",
             literature_content,
-            "Title matching is a retrieval aid only; study eligibility, full text, effect estimates, and risk of bias are not appraised in this mode.",
+            "Automated title/abstract decisions are retrieval aids only. Effect candidates must be checked against full text and tables; study eligibility and risk of bias are not appraised in this mode.",
         ),
         _section("limitations", "Limitations", _list(result.limitations, "No limitations were recorded.", "warning")),
         _section("provenance", "Provenance", provenance),
@@ -995,7 +1068,8 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
         status_value=_humanize(stage),
         header_meta=[
             ("Disease", _text(result.disease)),
-            ("Literature records", _text(len(result.literature_records))),
+            ("PubMed hits", _text(flow.total_hits)),
+            ("Records retrieved", _text(flow.records_retrieved)),
             ("Generated", generated_at),
         ],
         nav=[
@@ -1004,6 +1078,7 @@ def render_external_html(result: ExternalEvidenceResult) -> str:
             ("context", "Context of use"),
             ("entity", "Entity"),
             ("databases", "Databases"),
+            ("literature-flow", "Literature flow"),
             ("literature", "Literature"),
             ("limitations", "Limitations"),
             ("provenance", "Provenance"),

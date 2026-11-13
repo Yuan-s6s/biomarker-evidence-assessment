@@ -21,6 +21,8 @@ BiomarkerCategory = Literal[
     "unspecified",
 ]
 EvidenceDomainStatus = Literal["supported", "partial", "concern", "conflicting", "not_evaluated"]
+LiteratureScreeningDecision = Literal["include_candidate", "exclude", "uncertain"]
+EffectMeasure = Literal["hazard_ratio", "odds_ratio", "risk_ratio", "auc", "c_index"]
 EvidenceStageName = Literal[
     "not_assessed",
     "identity_confirmed",
@@ -234,6 +236,25 @@ class EvidenceConclusion(BaseModel):
     unmet_requirements: list[str] = Field(default_factory=list)
 
 
+class EffectEstimateCandidate(BaseModel):
+    measure: EffectMeasure
+    estimate: float
+    ci95: tuple[float, float]
+    source: Literal["abstract"] = "abstract"
+    extraction_method: str = "rule_based_v1"
+
+    @model_validator(mode="after")
+    def validate_estimate_and_interval(self) -> Self:
+        lower, upper = self.ci95
+        if lower > self.estimate or self.estimate > upper:
+            raise ValueError("effect estimate must lie within its 95% confidence interval")
+        if self.measure in {"hazard_ratio", "odds_ratio", "risk_ratio"} and lower <= 0:
+            raise ValueError("ratio estimates and confidence limits must be positive")
+        if self.measure in {"auc", "c_index"} and not 0 <= lower <= self.estimate <= upper <= 1:
+            raise ValueError("AUC and C-index estimates and confidence limits must be between zero and one")
+        return self
+
+
 class LiteratureRecord(BaseModel):
     pmid: str
     title: str
@@ -242,6 +263,48 @@ class LiteratureRecord(BaseModel):
     url: str
     evidence_class: Literal["direct", "indirect", "background"]
     matched_terms: list[str] = Field(default_factory=list)
+    abstract_available: bool = False
+    screening_decision: LiteratureScreeningDecision = "uncertain"
+    screening_reasons: list[str] = Field(default_factory=list)
+    effect_estimates: list[EffectEstimateCandidate] = Field(default_factory=list)
+
+
+class LiteratureSearchSummary(BaseModel):
+    total_hits: int = Field(default=0, ge=0)
+    retrieval_cap: int | None = Field(default=None, ge=0)
+    page_size: int = Field(default=100, ge=1, le=200)
+    pages_fetched: int = Field(default=0, ge=0)
+    records_retrieved: int = Field(default=0, ge=0)
+    records_screened: int = Field(default=0, ge=0)
+    records_included: int = Field(default=0, ge=0)
+    records_excluded: int = Field(default=0, ge=0)
+    records_uncertain: int = Field(default=0, ge=0)
+    abstracts_available: int = Field(default=0, ge=0)
+    records_with_effect_estimates: int = Field(default=0, ge=0)
+    effect_estimates_extracted: int = Field(default=0, ge=0)
+    truncated: bool = False
+    retrieval_warnings: list[str] = Field(default_factory=list)
+    screening_method: str = "automated_title_abstract_rules_v1"
+    effect_extraction_method: str = "rule_based_same_sentence_biomarker_effect_and_95ci_v1"
+
+    @model_validator(mode="after")
+    def validate_flow_counts(self) -> Self:
+        decisions = self.records_included + self.records_excluded + self.records_uncertain
+        if decisions != self.records_screened:
+            raise ValueError("included, excluded, and uncertain counts must sum to records_screened")
+        if self.records_screened > self.records_retrieved:
+            raise ValueError("records_screened cannot exceed records_retrieved")
+        if self.abstracts_available > self.records_retrieved:
+            raise ValueError("abstracts_available cannot exceed records_retrieved")
+        if self.records_with_effect_estimates > self.abstracts_available:
+            raise ValueError("records_with_effect_estimates cannot exceed abstracts_available")
+        return self
+
+
+class PubMedSearchResult(BaseModel):
+    query: str
+    records: list[LiteratureRecord] = Field(default_factory=list)
+    summary: LiteratureSearchSummary = Field(default_factory=LiteratureSearchSummary)
 
 
 class ExternalEvidenceResult(BaseModel):
@@ -249,6 +312,7 @@ class ExternalEvidenceResult(BaseModel):
     disease: str
     literature_query: str
     literature_records: list[LiteratureRecord] = Field(default_factory=list)
+    literature_summary: LiteratureSearchSummary = Field(default_factory=LiteratureSearchSummary)
     database_records: list[dict[str, Any]] = Field(default_factory=list)
     context_of_use: ContextOfUse | None = None
     evidence_domains: dict[str, EvidenceDomainAssessment] = Field(default_factory=dict)

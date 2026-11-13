@@ -2,7 +2,7 @@
 
 An auditable command-line toolkit for assessing the evidence, reproducibility,
 and validation readiness of RNA and protein expression biomarkers. Give it a
-biomarker and disease to retrieve public identity and PubMed metadata, or
+biomarker and disease to retrieve public identity plus paginated PubMed title/abstract records, or
 provide cohort CSV files to run deterministic statistical analyses.
 
 ## Why This Toolkit Exists
@@ -23,7 +23,7 @@ explicit.
 | Common problem | How the toolkit addresses it |
 | --- | --- |
 | Ambiguous or inconsistent gene identifiers | Resolves symbols and common database identifiers before assessing evidence |
-| Literature and cohort results reviewed in isolation | Provides consistent workflows and structured reports for public metadata searches and local cohort analyses |
+| Literature and cohort results reviewed in isolation | Provides paginated PubMed title/abstract screening and structured local cohort analyses |
 | Discovery results treated as external confirmation | Keeps discovery and external-validation cohorts separate and never pools their raw values |
 | Conclusions driven mainly by p-values | Reports effect sizes, confidence intervals, discrimination, and robustness measures |
 | Confidence scores with unclear meaning | Reports the highest supported evidence stage, a bounded claim, domain status, and explicit evidence gaps |
@@ -44,7 +44,7 @@ resolve gene identity (offline resolver + MyGene.info)
         +--> search disease-specific PubMed records
         |        |
         |        v
-        |    metadata-level literature signal
+        |    title/abstract literature signal
         |
         +--> optional cohort analysis
                  (discovery required; external optional)
@@ -59,7 +59,8 @@ resolve gene identity (offline resolver + MyGene.info)
 The current release includes:
 
 - Gene resolution for symbols, Ensembl IDs, Entrez IDs, and UniProt accessions.
-- MyGene.info identity lookup and NCBI PubMed metadata search.
+- MyGene.info identity lookup and paginated NCBI PubMed title/abstract retrieval.
+- Auditable literature-flow counts for total hits, retrieved records, automated-screen candidates, and same-sentence biomarker effect-and-95%-CI candidates.
 - Explicit context-of-use records for each diagnostic or prognostic claim.
 - Claim-bounded evidence stages and per-domain supported/partial/not-evaluated status.
 - Blocking quality-control checks for user-supplied cohort CSVs.
@@ -118,15 +119,28 @@ Use this when you only have a biomarker and disease:
 ./run.sh external RAB38 \
   --disease "lung squamous cell carcinoma" \
   --category diagnostic \
-  --retmax 10 \
+  --max-records 500 \
+  --page-size 100 \
   --out reports/rab38_lung_scc
 ```
 
 This contacts MyGene.info and NCBI PubMed. It reports identity support and a
-metadata-level literature signal. Publication count and `--retmax` do not raise
-the evidence stage. It does not inspect full text, verify reported effect sizes,
+title/abstract-level literature signal. PubMed is first queried for the total
+hit count, then records are retrieved through EFetch in auditable pages. The
+report distinguishes total hits, records actually retrieved, automated
+title/abstract candidates, and records containing rule-parsed biomarker-linked
+effect estimates paired with 95% confidence intervals in the same sentence.
+
+The default cap is 500 records. Use `--max-records 0` to request every record
+available through PubMed's 10,000-record ESearch limit. `--retmax` remains a
+compatibility alias. The tool throttles requests to respect NCBI's unauthenticated
+rate limit; an optional `NCBI_API_KEY` environment variable enables the API-key
+rate. Publication count and candidate effect estimates do not raise the evidence
+stage. The workflow does not inspect full text, verify extracted candidates,
 appraise study bias, or reanalyse public expression matrices. Ambiguous disease
-labels such as `LSCC` should be replaced by the full disease name.
+labels such as `LSCC` should be replaced by the full disease name. See
+[docs/literature_workflow.md](docs/literature_workflow.md) for exact definitions
+and limitations.
 
 ### 2. Guided Evidence Assessment
 
@@ -175,7 +189,7 @@ The primary result is a highest supported stage, not a confidence probability:
 | Stage | Claim supported |
 | --- | --- |
 | `identity_confirmed` | The submitted identifier maps to one biological entity |
-| `literature_signal` | Disease-related publication metadata were retrieved; study evidence is not yet appraised |
+| `literature_signal` | Disease-related title/abstract records were retrieved; automated screening and effect candidates are not full-text-verified evidence |
 | `retrospective_association` | An association was estimated in supplied retrospective data |
 | `independent_association_replication` | A precise, concordant association passed documented independence, disease-match, protocol-lock, and sample-size gates |
 | `locked_external_model_validation` | Reserved for applying a frozen model unchanged to fit-for-purpose external data |

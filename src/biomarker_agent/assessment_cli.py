@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 from biomarker_agent.confidence_cli import run_guided_assessment
 from biomarker_agent.external import assess_external_evidence
-from biomarker_agent.external_cli import add_context_arguments, context_from_args, write_external_outputs
+from biomarker_agent.external_cli import (
+    add_context_arguments,
+    add_literature_arguments,
+    context_from_args,
+    write_external_outputs,
+)
 from biomarker_agent.pipeline import load_request, run_validation
 from biomarker_agent.reporting import write_outputs
 
@@ -23,8 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     external.add_argument("biomarker_id")
     external.add_argument("--disease", required=True)
-    external.add_argument("--retmax", type=int, default=10)
-    external.add_argument("--email", help="Optional email passed to NCBI E-utilities")
+    add_literature_arguments(external)
     external.add_argument("--out", type=Path, default=Path("reports/external"))
     add_context_arguments(external)
 
@@ -58,12 +63,21 @@ def main(argv: list[str] | None = None) -> None:
             retmax=args.retmax,
             email=args.email,
             context_of_use=context_from_args(args),
+            page_size=args.page_size,
+            api_key=os.environ.get("NCBI_API_KEY"),
         )
         write_external_outputs(external_result, args.out)
         print(f"Evidence stage: {external_result.evidence_conclusion.stage}")
         print(f"Supported claim: {external_result.evidence_conclusion.supported_claim}")
         for assessment in external_result.evidence_domains.values():
             print(f"{assessment.dimension}: {assessment.status} - {assessment.justification}")
+        flow = external_result.literature_summary
+        print(
+            "Literature flow: "
+            f"{flow.total_hits} total hits; {flow.records_retrieved} retrieved; "
+            f"{flow.records_included} automated-screen candidates; "
+            f"{flow.records_with_effect_estimates} with same-sentence biomarker effect-and-95%-CI candidates"
+        )
         print(f"Wrote {args.out / 'external_evidence.json'}")
         print(f"Wrote {args.out / 'external_report.md'}")
         print(f"Wrote {args.out / 'external_report.html'}")

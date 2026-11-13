@@ -14,8 +14,10 @@ def test_external_workflow_arguments():
             "prognostic",
             "--population",
             "patients with breast cancer",
-            "--retmax",
-            "5",
+            "--max-records",
+            "250",
+            "--page-size",
+            "50",
         ]
     )
     assert args.workflow == "external"
@@ -23,6 +25,12 @@ def test_external_workflow_arguments():
     assert args.disease == "breast cancer"
     assert args.category == "prognostic"
     assert args.population == "patients with breast cancer"
+    assert args.retmax == 250
+    assert args.page_size == 50
+
+
+def test_retmax_remains_a_compatibility_alias():
+    args = build_parser().parse_args(["external", "TP53", "--disease", "breast cancer", "--retmax", "5"])
     assert args.retmax == 5
 
 

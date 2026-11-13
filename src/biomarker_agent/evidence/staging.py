@@ -7,6 +7,7 @@ from biomarker_agent.schemas import (
     EvidenceConclusion,
     EvidenceDomainAssessment,
     LiteratureRecord,
+    LiteratureSearchSummary,
     ValidationRequest,
     ValidationResult,
 )
@@ -105,9 +106,30 @@ def build_external_framework(
     entity: BiomarkerEntity,
     context: ContextOfUse,
     literature_records: list[LiteratureRecord],
+    literature_summary: LiteratureSearchSummary | None = None,
 ) -> tuple[dict[str, EvidenceDomainAssessment], EvidenceConclusion]:
     identity_supported = entity.resolution_confidence == "unique"
-    literature_found = bool(literature_records)
+    summary = literature_summary or LiteratureSearchSummary(records_retrieved=len(literature_records))
+    records_retrieved = bool(literature_records)
+    literature_signal = summary.records_included > 0 or (
+        records_retrieved and summary.records_screened == 0 and literature_summary is None
+    )
+    retrieval_failed = (summary.total_hits > 0 or bool(summary.retrieval_warnings)) and not records_retrieved
+    if records_retrieved:
+        retrieval_justification = (
+            f"PubMed returned {summary.total_hits} hit(s); {summary.records_retrieved} were retrieved, "
+            f"{summary.records_included} passed automated title/abstract screening, and "
+            f"{summary.records_with_effect_estimates} contained rule-parsed same-sentence biomarker "
+            "effect-and-95%-CI candidate(s). Full-text eligibility and extracted values were not verified."
+        )
+        if summary.retrieval_warnings:
+            retrieval_justification += f" Pagination produced {len(summary.retrieval_warnings)} warning(s)."
+    elif retrieval_failed:
+        retrieval_justification = (
+            f"PubMed retrieval failed or returned no usable records ({len(summary.retrieval_warnings)} warning(s))."
+        )
+    else:
+        retrieval_justification = "No disease-related PubMed records were found."
     domains = {
         "identity": EvidenceDomainAssessment(
             dimension="identity",
@@ -121,12 +143,8 @@ def build_external_framework(
         "context_of_use": _context_domain([context]),
         "literature_retrieval": EvidenceDomainAssessment(
             dimension="literature_retrieval",
-            status="partial" if literature_found else "not_evaluated",
-            justification=(
-                f"Retrieved {len(literature_records)} disease-related PubMed metadata record(s); study eligibility and results were not appraised."
-                if literature_found
-                else "No disease-related PubMed metadata records were retrieved."
-            ),
+            status="partial" if records_retrieved else "concern" if retrieval_failed else "not_evaluated",
+            justification=retrieval_justification,
         ),
         "study_quality": EvidenceDomainAssessment(
             dimension="study_quality",
@@ -156,15 +174,15 @@ def build_external_framework(
             supported_claim="No biomarker evidence claim is supported until the identifier is resolved.",
             unmet_requirements=["Resolve the biomarker to one biological entity."],
         )
-    elif literature_found:
+    elif literature_signal:
         conclusion = EvidenceConclusion(
             stage="literature_signal",
             supported_claim=(
-                "The biomarker identity was resolved and disease-related literature metadata were retrieved. "
-                "This supports a literature signal only, not a validated association."
+                "The biomarker identity was resolved and disease-related PubMed title/abstract records were found. "
+                "Automated screening results, including any same-sentence abstract biomarker effect candidates, support a literature signal only, not a validated association."
             ),
             unmet_requirements=[
-                "Appraise eligible full-text studies and extract effect estimates with confidence intervals.",
+                "Verify study eligibility and every candidate effect estimate against full text and tables.",
                 "Assess study-level risk of bias and duplicate cohorts.",
                 "Reanalyse an independent, fit-for-purpose cohort.",
                 "Document analytical validity of the measurement assay.",

@@ -22,7 +22,7 @@ validation, analytical validity, and clinical utility.
 Stages are deliberately claim bounded:
 
 1. `identity_confirmed`: identity only.
-2. `literature_signal`: relevant publication metadata retrieved, without study appraisal.
+2. `literature_signal`: relevant PubMed title/abstract records retrieved, without full-text eligibility or risk-of-bias appraisal. Automated screening decisions and rule-parsed effect-and-95%-CI candidates remain unverified.
 3. `retrospective_association`: an association estimated in supplied retrospective data.
 4. `independent_association_replication`: a concordant, precise association passes documented replication gates.
 5. `locked_external_model_validation`: a frozen model is applied unchanged in fit-for-purpose external data.

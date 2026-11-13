@@ -19,7 +19,7 @@ def test_pipeline_generates_result_and_reports(tmp_path):
     assert result.evidence_domains["locked_external_model_validation"].status == "not_evaluated"
     assert result.evidence_domains["analytical_validity"].status == "not_evaluated"
     assert result.overall_grade == "D"
-    assert result.provenance["software_version"] == "0.2.0"
+    assert result.provenance["software_version"] == "0.3.0"
     assert result.provenance["phase"] == "phase_2_claim_bounded_assessment"
     assert result.provenance["runtime_versions"]["python"]
     assert all(item.random_seed == 202601 for item in result.robustness.values())
